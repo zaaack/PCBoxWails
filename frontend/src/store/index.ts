@@ -198,6 +198,10 @@ interface AppState {
     url: string,
     headers?: Record<string, string>
   ) => void;
+  playFromCache: (filePath: string, isHLS: boolean, videoName: string) => void;
+  previousView: string;
+  showCacheManager: boolean;
+  setShowCacheManager: (v: boolean) => void;
 
   history: VodInfo[];
   setHistory: (history: VodInfo[]) => void;
@@ -331,6 +335,21 @@ export const useStore = create<AppState>((set, get) => ({
   playHeaders: {},
   setPlayState: (episode, episodeIndex, playFlag, url, headers = {}) =>
     set({ currentEpisode: episode, currentEpisodeIndex: episodeIndex, currentPlayFlag: playFlag, playUrl: url, playHeaders: headers }),
+  playFromCache: (filePath, isHLS, videoName) => {
+    const fileUrl = 'file://' + filePath.replace(/\\/g, '/');
+    set({
+      playUrl: fileUrl,
+      playHeaders: {},
+      currentEpisode: { name: videoName, url: filePath },
+      currentEpisodeIndex: 0,
+      currentPlayFlag: 'cache',
+      previousView: 'cache',
+      viewMode: 'player',
+    });
+  },
+  previousView: '' as string,
+  showCacheManager: false,
+  setShowCacheManager: (v) => set({ showCacheManager: v }),
 
   history: [],
   setHistory: (history) => set({ history }),

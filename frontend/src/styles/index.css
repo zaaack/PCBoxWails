@@ -1617,6 +1617,15 @@ select.settings-input {
   color: var(--danger);
 }
 
+.btn-play-icon {
+  color: var(--accent);
+}
+
+.btn-play-icon:hover {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent);
+}
+
 .cache-manager-toolbar {
   display: flex;
   align-items: center;

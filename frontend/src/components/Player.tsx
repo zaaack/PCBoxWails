@@ -16,6 +16,7 @@ export const PlayerView: React.FC = () => {
     currentVideo,
     currentEpisodeIndex,
     currentPlayFlag,
+    previousView,
     setPlayState,
     setViewMode,
     saveHistory,
@@ -230,7 +231,10 @@ export const PlayerView: React.FC = () => {
       setIsOnTop(false);
       api.setAlwaysOnTop(false);
     }
-    if (currentVideo) {
+    if (currentPlayFlag === 'cache') {
+      useStore.getState().setShowCacheManager(true);
+      setViewMode('home');
+    } else if (currentVideo) {
       setViewMode('detail');
     } else {
       setViewMode('home');

@@ -12,6 +12,7 @@ import {
   FiCheck,
   FiAlertCircle,
   FiList,
+  FiPlay,
 } from 'react-icons/fi';
 
 const formatSize = (bytes: number): string => {
@@ -52,6 +53,7 @@ export const CacheManager: React.FC = () => {
     deleteCacheById,
     deleteCacheBatch,
     cancelDownload,
+    playFromCache,
     addToast,
   } = useStore();
 
@@ -135,6 +137,11 @@ export const CacheManager: React.FC = () => {
     loadCachedFilesPaged(cachePage);
     loadCacheStats();
     addToast({ message: 'Download cancelled', type: 'info' });
+  };
+
+  const handlePlay = (record: any) => {
+    if (!record.filePath || record.status !== 'completed') return;
+    playFromCache(record.filePath, record.isHLS, record.videoName);
   };
 
   const getStatusDisplay = (record: any) => {
@@ -261,6 +268,15 @@ export const CacheManager: React.FC = () => {
                   <td className="cache-td-status">{getStatusDisplay(record)}</td>
                   <td className="cache-td-date">{formatDate(record.updatedAt)}</td>
                   <td className="cache-td-actions">
+                    {record.status === 'completed' && (
+                      <button
+                        className="btn btn-xs btn-icon btn-play-icon"
+                        onClick={() => handlePlay(record)}
+                        title="Play"
+                      >
+                        <FiPlay size={12} />
+                      </button>
+                    )}
                     {(record.status === 'downloading' || record.status === 'pending') ? (
                       <button
                         className="btn btn-xs btn-icon btn-cancel-icon"
@@ -268,6 +284,15 @@ export const CacheManager: React.FC = () => {
                         title="Cancel"
                       >
                         <FiX size={12} />
+                      </button>
+                    ) : record.status !== 'completed' ? (
+                      <button
+                        className="btn btn-xs btn-icon btn-danger-icon"
+                        onClick={() => handleDeleteSingle(record.id)}
+                        disabled={deleting}
+                        title="Delete"
+                      >
+                        <FiTrash2 size={12} />
                       </button>
                     ) : (
                       <button

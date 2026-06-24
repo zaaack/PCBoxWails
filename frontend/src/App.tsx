@@ -28,10 +28,11 @@ const App: React.FC = () => {
     addToast,
     downloadQueue,
     loadDownloadQueue,
+    showCacheManager,
+    setShowCacheManager,
   } = useStore();
 
   const [showSettings, setShowSettings] = useState(false);
-  const [showCacheManager, setShowCacheManager] = useState(false);
 
   useEffect(() => {
     initApp();
