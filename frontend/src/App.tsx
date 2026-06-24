@@ -49,6 +49,15 @@ const App: React.FC = () => {
       console.log('[PCBox] Server status:', status);
       if (status && status.running) {
         setWsStatus(true, status.port);
+        try {
+          const clients = await api.getClients();
+          if (clients && clients.length > 0) {
+            setConnectedClient(clients[0]);
+            setTimeout(() => loadSources(), 500);
+          }
+        } catch (e) {
+          console.warn('[PCBox] getClients failed:', e);
+        }
         return;
       }
     } catch (e) {
