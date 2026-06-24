@@ -131,8 +131,9 @@ func (s *WsServer) Start(port int) bool {
 		Handler: mux,
 	}
 
+	srv := s.httpServer
 	go func() {
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("WebSocket server error: %v", err)
 		}
 	}()

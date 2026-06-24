@@ -13,8 +13,6 @@ func (w *windowsTray) show() { w.inner.Show() }
 func (w *windowsTray) remove() { w.inner.Remove() }
 
 func (w *windowsTray) run(t *Tray) error {
-	w.inner = systray.New()
-
 	if t.icon != nil {
 		w.inner.SetIcon(t.icon)
 	}
@@ -41,5 +39,7 @@ func (w *windowsTray) run(t *Tray) error {
 }
 
 func init() {
-	newPlatformTray = func() platformTray { return &windowsTray{} }
+	newPlatformTray = func() platformTray {
+		return &windowsTray{inner: systray.New()}
+	}
 }

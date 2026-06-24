@@ -30,7 +30,9 @@ export const PlayerView: React.FC = () => {
   const [showEpisodePanel, setShowEpisodePanel] = useState(false);
   const [showOverlay, setShowOverlay] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
+  const [showCursor, setShowCursor] = useState(true);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const cursorTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const progressSaveRef = useRef<ReturnType<typeof setInterval>>();
 
   const resetHideTimer = useCallback(() => {
@@ -40,6 +42,12 @@ export const PlayerView: React.FC = () => {
       hideTimerRef.current = setTimeout(() => setShowOverlay(false), 3000);
     }
   }, [isPaused]);
+
+  const resetCursorTimer = useCallback(() => {
+    setShowCursor(true);
+    if (cursorTimerRef.current) clearTimeout(cursorTimerRef.current);
+    cursorTimerRef.current = setTimeout(() => setShowCursor(false), 3000);
+  }, []);
 
   useEffect(() => {
     if (!videoContainerRef.current || !playUrl) return;
@@ -140,6 +148,7 @@ export const PlayerView: React.FC = () => {
     resetHideTimer();
     return () => {
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      if (cursorTimerRef.current) clearTimeout(cursorTimerRef.current);
     };
   }, [isPaused, resetHideTimer]);
 
@@ -285,6 +294,7 @@ export const PlayerView: React.FC = () => {
 
   const handleMouseMove = () => {
     resetHideTimer();
+    resetCursorTimer();
   };
 
   const isFs = isSystemFullscreen;
@@ -317,7 +327,7 @@ export const PlayerView: React.FC = () => {
 
   return (
     <div
-      className={`player-page ${isFs ? 'is-fullscreen' : ''}`}
+      className={`player-page ${isFs ? 'is-fullscreen' : ''} ${showCursor ? '' : 'hide-cursor'}`}
       onMouseMove={handleMouseMove}
     >
       <div className="video-container">

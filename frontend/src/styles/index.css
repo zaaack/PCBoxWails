@@ -625,6 +625,14 @@ body {
   z-index: 9999;
 }
 
+.player-page.hide-cursor {
+  cursor: none;
+}
+
+.player-page.hide-cursor * {
+  cursor: none;
+}
+
 .video-container {
   position: absolute;
   top: 0;
