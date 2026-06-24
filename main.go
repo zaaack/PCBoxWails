@@ -137,6 +137,12 @@ func runServer(ipcPort int) {
 	tray.OnDoubleClick(func() { showWindow(srv) })
 
 	tray.Show()
+	
+	if envBuild := os.Getenv("PCBOX_BUILD"); envBuild != "" {
+    		runWindow(ipcPort)
+    		return
+	}
+	
 	go showWindow(srv)
 	if err := tray.Run(); err != nil {
 		log.Fatalf("[Tray] Run error: %v", err)

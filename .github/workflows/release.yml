@@ -27,6 +27,8 @@ jobs:
             runner: macos-latest
 
     runs-on: ${{ matrix.runner }}
+    env:
+      PCBOX_BUILD: 1
     steps:
       - uses: actions/checkout@v4
         with:

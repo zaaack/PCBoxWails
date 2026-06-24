@@ -7,6 +7,9 @@ call pnpm run build
 cd ..
 
 echo [2/2] Building binary with wails...
+
+
+set PCBOX_BUILD=1
 wails build
 
 echo Done! Binary at build\bin\pcbox.exe
