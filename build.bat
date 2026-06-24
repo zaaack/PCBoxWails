@@ -8,9 +8,15 @@ cd ..
 
 echo [2/2] Building binary with wails...
 
+setlocal
+
 
 set PCBOX_BUILD=1
 wails build
+
+
+endlocal
+
 
 echo Done! Binary at build\bin\pcbox.exe
 echo Usage:

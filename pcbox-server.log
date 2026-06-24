@@ -1,32 +1,44 @@
-2026/06/24 16:51:56 [Proxy] Server started on port 19567
-2026/06/24 16:51:56 WebSocket server started on port 9898
-2026/06/24 16:51:56 [PCBox] WebSocket server started on port 9898
-2026/06/24 16:51:56 [IPC] Server starting on 127.0.0.1:9899
-2026/06/24 16:51:56 [IPC] New client connected
-2026/06/24 16:51:57 [IPC] GetWsServerStatus: map[port:9898 running:true]
-2026/06/24 16:52:02 New WebSocket connection
-2026/06/24 16:52:02 Received message: code=100
-2026/06/24 16:52:02 Client registered: tv-k-default (69f0fd0e9d42a64b)
-2026/06/24 16:52:02 Client registered: tv-k-default
-2026/06/24 16:52:02 Sent message: {"code":201,"data":null,"topicFlag":true,"topicId":"usqzhcxj12mqru47sg"}
-2026/06/24 16:52:02 Received message: code=202
-2026/06/24 16:52:02 Sent message: {"code":203,"data":{"activated":false,"api":"csp_Douban","ext":"","jar":"https://ym.wya6.cn/tz/wyxs.php;md5;803ee0bcfa247f0cb839b914e8aea5dd","key":"豆瓣","name":"无意云┃空间","searchable":0,"type":3},"topicFlag":true,"topicId":"p2nzbadkyumqru47t5"}
-2026/06/24 16:52:02 Sent message: {"code":203,"data":{"activated":false,"api":"csp_Gz360","ext":"","jar":"https://ym.wya6.cn/tz/wyxs.php;md5;803ee0bcfa247f0cb839b914e8aea5dd","key":"瓜子影视","name":"无意云┃HDR","quickSearch":1,"searchable":1,"type":3},"topicFlag":true,"topicId":"hgi245kijxgmqru47x6"}
-2026/06/24 16:52:03 Sent message: {"code":203,"data":{"activated":false,"api":"csp_Gz360","ext":"","jar":"https://ym.wya6.cn/tz/wyxs.php;md5;803ee0bcfa247f0cb839b914e8aea5dd","key":"瓜子影视","name":"无意云┃HDR","quickSearch":1,"searchable":1,"type":3},"topicFlag":true,"topicId":"8czacc96lynmqru4806"}
-2026/06/24 16:52:03 Sent message: {"code":203,"data":{"activated":false,"api":"csp_Gz360","ext":"","jar":"https://ym.wya6.cn/tz/wyxs.php;md5;803ee0bcfa247f0cb839b914e8aea5dd","key":"瓜子影视","name":"无意云┃HDR","quickSearch":1,"searchable":1,"type":3},"topicFlag":true,"topicId":"r1h09a61bbmqru481h"}
-2026/06/24 16:52:03 Received message: code=204
-2026/06/24 16:52:03 Received message: code=204
-2026/06/24 16:52:03 Received message: code=204
-2026/06/24 16:52:03 Received message: code=204
-2026/06/24 16:52:04 Sent message: {"code":211,"data":{"limit":50},"topicFlag":true,"topicId":"mguzm3duqsmqru490t"}
-2026/06/24 16:52:04 Received message: code=212
-2026/06/24 16:52:05 Sent message: {"code":207,"data":{"sourceKey":"金牌影视","vodId":"129824"},"topicFlag":true,"topicId":"oro1d2sv12cmqru49jy"}
-2026/06/24 16:52:05 Sent message: {"code":207,"data":{"sourceKey":"金牌影视","vodId":"129824"},"topicFlag":true,"topicId":"e2dzv1c3878mqru49sb"}
-2026/06/24 16:52:05 Received message: code=208
-2026/06/24 16:52:05 Received message: code=208
-2026/06/24 16:52:06 Sent message: {"code":209,"data":{"playFlag":"在线播放","sourceKey":"金牌影视","vodId":"129824@1102983"},"topicFlag":true,"topicId":"pnbi4afe2wmqru4b0u"}
-2026/06/24 16:52:07 Received message: code=210
-2026/06/24 16:52:16 Sent message: {"code":215,"data":{"duration":2634799,"episodeFlag":"17","episodeIndex":16,"episodeUrl":"129824@1102983","playFlag":"在线播放","position":1711099,"revSort":false,"sourceKey":"金牌影视","vodId":"129824","vodName":"豪斯医生 第二季","vodPic":"https://obs.3688baihuo.com/upload/movie/20241014/vod3002885.webp"},"topicFlag":false,"topicId":""}
-2026/06/24 16:52:26 Sent message: {"code":215,"data":{"duration":2634799,"episodeFlag":"17","episodeIndex":16,"episodeUrl":"129824@1102983","playFlag":"在线播放","position":1721098,"revSort":false,"sourceKey":"金牌影视","vodId":"129824","vodName":"豪斯医生 第二季","vodPic":"https://obs.3688baihuo.com/upload/movie/20241014/vod3002885.webp"},"topicFlag":false,"topicId":""}
-2026/06/24 16:52:36 Sent message: {"code":215,"data":{"duration":2634799,"episodeFlag":"17","episodeIndex":16,"episodeUrl":"129824@1102983","playFlag":"在线播放","position":1725710,"revSort":false,"sourceKey":"金牌影视","vodId":"129824","vodName":"豪斯医生 第二季","vodPic":"https://obs.3688baihuo.com/upload/movie/20241014/vod3002885.webp"},"topicFlag":false,"topicId":""}
-2026/06/24 16:52:39 [Server] Window process exited
+2026/06/24 17:05:03 [Proxy] Server started on port 13077
+2026/06/24 17:05:03 WebSocket server started on port 9898
+2026/06/24 17:05:03 [PCBox] WebSocket server started on port 9898
+2026/06/24 17:05:03 [IPC] Server starting on 127.0.0.1:9899
+2026/06/24 17:05:03 [IPC] New client connected
+2026/06/24 17:05:03 [IPC] GetWsServerStatus: map[port:9898 running:true]
+2026/06/24 17:05:36 New WebSocket connection
+2026/06/24 17:05:36 Received message: code=100
+2026/06/24 17:05:36 Client registered: tv-k-default (69f0fd0e9d42a64b)
+2026/06/24 17:05:36 Client registered: tv-k-default
+2026/06/24 17:05:36 Sent message: {"code":201,"data":null,"topicFlag":true,"topicId":"jyb364ln5komqrulnsf"}
+2026/06/24 17:05:36 Received message: code=202
+2026/06/24 17:05:36 Sent message: {"code":203,"data":{"activated":false,"api":"csp_Douban","ext":"","jar":"https://ym.wya6.cn/tz/wyxs.php;md5;803ee0bcfa247f0cb839b914e8aea5dd","key":"豆瓣","name":"无意云┃空间","searchable":0,"type":3},"topicFlag":true,"topicId":"bikjd29cjonmqrulnt8"}
+2026/06/24 17:05:37 Sent message: {"code":203,"data":{"activated":false,"api":"csp_Douban","ext":"","jar":"https://ym.wya6.cn/tz/wyxs.php;md5;803ee0bcfa247f0cb839b914e8aea5dd","key":"豆瓣","name":"无意云┃空间","searchable":0,"type":3},"topicFlag":true,"topicId":"r3xkyypytlrmqrulo1l"}
+2026/06/24 17:05:37 Received message: code=204
+2026/06/24 17:05:37 Received message: code=204
+2026/06/24 17:05:47 [Server] Window already running
+2026/06/24 17:05:54 [Server] Window process exited
+2026/06/24 17:05:56 [IPC] New client connected
+2026/06/24 17:05:57 [IPC] GetWsServerStatus: map[port:9898 running:true]
+2026/06/24 17:05:57 Sent message: {"code":201,"data":null,"topicFlag":true,"topicId":"bahmqqw8muqmqrum3x8"}
+2026/06/24 17:05:57 Received message: code=202
+2026/06/24 17:05:57 Sent message: {"code":203,"data":{"activated":false,"api":"csp_Douban","ext":"","jar":"https://ym.wya6.cn/tz/wyxs.php;md5;803ee0bcfa247f0cb839b914e8aea5dd","key":"豆瓣","name":"无意云┃空间","searchable":0,"type":3},"topicFlag":true,"topicId":"5payr6ccapwmqrum3yb"}
+2026/06/24 17:05:57 Sent message: {"code":203,"data":{"activated":false,"api":"csp_Douban","ext":"","jar":"https://ym.wya6.cn/tz/wyxs.php;md5;803ee0bcfa247f0cb839b914e8aea5dd","key":"豆瓣","name":"无意云┃空间","searchable":0,"type":3},"topicFlag":true,"topicId":"03rksrkw3xmdmqrum46n"}
+2026/06/24 17:05:58 Received message: code=204
+2026/06/24 17:05:58 Received message: code=204
+2026/06/24 17:05:59 Sent message: {"code":211,"data":{"limit":50},"topicFlag":true,"topicId":"k1wb5c5qxtmqrum5ag"}
+2026/06/24 17:05:59 Received message: code=212
+2026/06/24 17:06:00 Sent message: {"code":207,"data":{"sourceKey":"金牌影视","vodId":"129824"},"topicFlag":true,"topicId":"ddlkbw0yaa9mqrum5xy"}
+2026/06/24 17:06:00 Sent message: {"code":207,"data":{"sourceKey":"金牌影视","vodId":"129824"},"topicFlag":true,"topicId":"gbnhimv6kqjmqrum66h"}
+2026/06/24 17:06:02 Received message: code=208
+2026/06/24 17:06:03 Received message: code=208
+2026/06/24 17:06:04 Sent message: {"code":209,"data":{"playFlag":"在线播放","sourceKey":"金牌影视","vodId":"129824@1102983"},"topicFlag":true,"topicId":"xwll5lp49qhmqrum8zw"}
+2026/06/24 17:06:04 Received message: code=210
+2026/06/24 17:06:14 Sent message: {"code":215,"data":{"duration":2634799,"episodeFlag":"17","episodeIndex":16,"episodeUrl":"129824@1102983","playFlag":"在线播放","position":2409276,"revSort":false,"sourceKey":"金牌影视","vodId":"129824","vodName":"豪斯医生 第二季","vodPic":"https://obs.3688baihuo.com/upload/movie/20241014/vod3002885.webp"},"topicFlag":false,"topicId":""}
+2026/06/24 17:06:24 Sent message: {"code":215,"data":{"duration":2634799,"episodeFlag":"17","episodeIndex":16,"episodeUrl":"129824@1102983","playFlag":"在线播放","position":2419291,"revSort":false,"sourceKey":"金牌影视","vodId":"129824","vodName":"豪斯医生 第二季","vodPic":"https://obs.3688baihuo.com/upload/movie/20241014/vod3002885.webp"},"topicFlag":false,"topicId":""}
+2026/06/24 17:06:34 Sent message: {"code":215,"data":{"duration":2634799,"episodeFlag":"17","episodeIndex":16,"episodeUrl":"129824@1102983","playFlag":"在线播放","position":2512095,"revSort":false,"sourceKey":"金牌影视","vodId":"129824","vodName":"豪斯医生 第二季","vodPic":"https://obs.3688baihuo.com/upload/movie/20241014/vod3002885.webp"},"topicFlag":false,"topicId":""}
+2026/06/24 17:06:44 Sent message: {"code":215,"data":{"duration":2634799,"episodeFlag":"17","episodeIndex":16,"episodeUrl":"129824@1102983","playFlag":"在线播放","position":2522084,"revSort":false,"sourceKey":"金牌影视","vodId":"129824","vodName":"豪斯医生 第二季","vodPic":"https://obs.3688baihuo.com/upload/movie/20241014/vod3002885.webp"},"topicFlag":false,"topicId":""}
+2026/06/24 17:06:54 Sent message: {"code":215,"data":{"duration":2634799,"episodeFlag":"17","episodeIndex":16,"episodeUrl":"129824@1102983","playFlag":"在线播放","position":2532082,"revSort":false,"sourceKey":"金牌影视","vodId":"129824","vodName":"豪斯医生 第二季","vodPic":"https://obs.3688baihuo.com/upload/movie/20241014/vod3002885.webp"},"topicFlag":false,"topicId":""}
+2026/06/24 17:07:04 Sent message: {"code":215,"data":{"duration":2634799,"episodeFlag":"17","episodeIndex":16,"episodeUrl":"129824@1102983","playFlag":"在线播放","position":2542094,"revSort":false,"sourceKey":"金牌影视","vodId":"129824","vodName":"豪斯医生 第二季","vodPic":"https://obs.3688baihuo.com/upload/movie/20241014/vod3002885.webp"},"topicFlag":false,"topicId":""}
+2026/06/24 17:07:14 Sent message: {"code":215,"data":{"duration":2634799,"episodeFlag":"17","episodeIndex":16,"episodeUrl":"129824@1102983","playFlag":"在线播放","position":2552084,"revSort":false,"sourceKey":"金牌影视","vodId":"129824","vodName":"豪斯医生 第二季","vodPic":"https://obs.3688baihuo.com/upload/movie/20241014/vod3002885.webp"},"topicFlag":false,"topicId":""}
+2026/06/24 17:07:24 Sent message: {"code":215,"data":{"duration":2634799,"episodeFlag":"17","episodeIndex":16,"episodeUrl":"129824@1102983","playFlag":"在线播放","position":2562081,"revSort":false,"sourceKey":"金牌影视","vodId":"129824","vodName":"豪斯医生 第二季","vodPic":"https://obs.3688baihuo.com/upload/movie/20241014/vod3002885.webp"},"topicFlag":false,"topicId":""}
+2026/06/24 17:07:34 Sent message: {"code":215,"data":{"duration":2634799,"episodeFlag":"17","episodeIndex":16,"episodeUrl":"129824@1102983","playFlag":"在线播放","position":2572094,"revSort":false,"sourceKey":"金牌影视","vodId":"129824","vodName":"豪斯医生 第二季","vodPic":"https://obs.3688baihuo.com/upload/movie/20241014/vod3002885.webp"},"topicFlag":false,"topicId":""}
+2026/06/24 17:07:44 Sent message: {"code":215,"data":{"duration":2634813,"episodeFlag":"17","episodeIndex":16,"episodeUrl":"129824@1102983","playFlag":"在线播放","position":2582084,"revSort":false,"sourceKey":"金牌影视","vodId":"129824","vodName":"豪斯医生 第二季","vodPic":"https://obs.3688baihuo.com/upload/movie/20241014/vod3002885.webp"},"topicFlag":false,"topicId":""}

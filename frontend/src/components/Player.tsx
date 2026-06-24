@@ -88,6 +88,15 @@ export const PlayerView: React.FC = () => {
 
     playerRef.current = player;
 
+    const savedVolume = localStorage.getItem('player-volume');
+    if (savedVolume !== null) {
+      player.volume(parseFloat(savedVolume));
+    }
+
+    player.on('volumechange', () => {
+      localStorage.setItem('player-volume', String(player.volume()));
+    });
+
     (player as any).hotkeys({
       volumeStep: 0.1,
       seekStep: 5,
