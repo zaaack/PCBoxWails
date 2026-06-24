@@ -29,6 +29,10 @@ func main() {
 	ipcPort := flag.Int("ipc-port", 9899, "IPC server port")
 	flag.Parse()
 
+	if envMode := os.Getenv("PCBOX_MODE"); envMode != "" {
+		*mode = envMode
+	}
+
 	switch *mode {
 	case "server":
 		runServer(*ipcPort)
