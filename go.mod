@@ -3,6 +3,7 @@ module PcBoxWails
 go 1.25.0
 
 require (
+	fyne.io/systray v1.12.0
 	github.com/gogpu/systray v0.1.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/wailsapp/wails/v2 v2.12.0

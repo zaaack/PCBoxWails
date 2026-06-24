@@ -10,12 +10,12 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/gogpu/systray"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 
 	"PcBoxWails/internal/ipc"
+	"PcBoxWails/internal/tray"
 )
 
 //go:embed all:frontend/dist
@@ -117,26 +117,26 @@ func runServer(ipcPort int) {
 		}
 	}()
 
-	tray := systray.New()
+	t := tray.New()
 	if len(iconPNG) > 0 {
-		tray.SetIcon(iconPNG)
+		t.SetIcon(iconPNG)
 	}
-	tray.SetTooltip("PCBox Server")
+	t.SetTooltip("PCBox Server")
 
-	menu := systray.NewMenu()
+	menu := tray.NewMenu()
 	menu.Add("显示窗口", func() { showWindow(srv) })
 	menu.AddSeparator()
 	menu.Add("退出", func() {
-		tray.Remove()
+		t.Remove()
 		if srv.windowCmd != nil && srv.windowCmd.Process != nil {
 			srv.windowCmd.Process.Kill()
 		}
 		os.Exit(0)
 	})
-	tray.SetMenu(menu)
-	tray.OnDoubleClick(func() { showWindow(srv) })
+	t.SetMenu(menu)
+	t.OnDoubleClick(func() { showWindow(srv) })
 
-	tray.Show()
+	t.Show()
 	
 	if envBuild := os.Getenv("PCBOX_BUILD"); envBuild != "" {
     		runWindow(ipcPort)
@@ -144,7 +144,7 @@ func runServer(ipcPort int) {
 	}
 	
 	go showWindow(srv)
-	if err := tray.Run(); err != nil {
+	if err := t.Run(); err != nil {
 		log.Fatalf("[Tray] Run error: %v", err)
 	}
 }

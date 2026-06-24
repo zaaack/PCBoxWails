@@ -11,10 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogpu/systray"
-
 	"PcBoxWails/internal/ipc"
 	"PcBoxWails/internal/server"
+	"PcBoxWails/internal/tray"
 )
 
 var (
@@ -146,24 +145,24 @@ func main() {
 
 	iconData := loadIcon()
 
-	tray := systray.New()
+	t := tray.New()
 	if iconData != nil {
-		tray.SetIcon(iconData)
+		t.SetIcon(iconData)
 	}
-	tray.SetTooltip("PCBox Server")
+	t.SetTooltip("PCBox Server")
 
-	menu := systray.NewMenu()
+	menu := tray.NewMenu()
 	menu.Add("显示窗口", func() { showWindow() })
 	menu.AddSeparator()
 	menu.Add("退出", func() {
-		tray.Remove()
+		t.Remove()
 		os.Exit(0)
 	})
-	tray.SetMenu(menu)
-	tray.OnDoubleClick(func() { showWindow() })
+	t.SetMenu(menu)
+	t.OnDoubleClick(func() { showWindow() })
 
-	tray.Show()
-	if err := tray.Run(); err != nil {
+	t.Show()
+	if err := t.Run(); err != nil {
 		log.Fatalf("[Tray] Run error: %v", err)
 	}
 }
