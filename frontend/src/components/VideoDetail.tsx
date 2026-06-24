@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { TvBoxVideo } from '../lib/converter';
-import { FiDownload, FiLoader } from 'react-icons/fi';
+import { FiDownload } from 'react-icons/fi';
+import { CacheModal } from './CacheModal';
 
 export const VideoDetail: React.FC = () => {
   const {
@@ -13,11 +14,10 @@ export const VideoDetail: React.FC = () => {
     currentSource,
     loading,
     historyHighlightEpisode,
-    downloadVideo,
   } = useStore();
 
   const [detailVideo, setDetailVideo] = useState<TvBoxVideo | null>(null);
-  const [downloadingEpisodes, setDownloadingEpisodes] = useState<Set<string>>(new Set());
+  const [showCacheModal, setShowCacheModal] = useState(false);
 
   useEffect(() => {
     if (currentVideo && currentSource) {
@@ -59,31 +59,6 @@ export const VideoDetail: React.FC = () => {
     }
   };
 
-  const handleDownloadEpisode = async (episode: any, playFlag: string) => {
-    const source = currentSource || { key: video.sourceKey };
-    if (!source) return;
-
-    const epKey = `${playFlag}:${episode.url}`;
-    setDownloadingEpisodes((prev) => new Set(prev).add(epKey));
-
-    try {
-      const { loadPlayerContent: loadPlayer } = useStore.getState();
-      const result = await loadPlayer(source.key, playFlag, episode.url);
-      if (result && result.url) {
-        const videoName = `${video.name} - ${episode.name}`;
-        await downloadVideo(result.url, result.headers || {}, videoName);
-      }
-    } catch (e) {
-      console.warn('[PCBox] Download failed:', e);
-    } finally {
-      setDownloadingEpisodes((prev) => {
-        const next = new Set(prev);
-        next.delete(epKey);
-        return next;
-      });
-    }
-  };
-
   const playFlags = video.urlBean?.infoList || [];
 
   return (
@@ -92,6 +67,11 @@ export const VideoDetail: React.FC = () => {
         <button className="btn btn-secondary" onClick={() => setViewMode('home')}>
           ← Back
         </button>
+        {playFlags.length > 0 && (
+          <button className="btn btn-primary" onClick={() => setShowCacheModal(true)}>
+            <FiDownload size={14} /> Cache
+          </button>
+        )}
       </div>
 
       {loading && (
@@ -139,29 +119,14 @@ export const VideoDetail: React.FC = () => {
                         historyHighlightEpisode &&
                         historyHighlightEpisode.playFlag === flagInfo.flag &&
                         historyHighlightEpisode.episodeUrl === episode.url;
-                      const epKey = `${flagInfo.flag}:${episode.url}`;
-                      const isDownloading = downloadingEpisodes.has(epKey);
                       return (
-                        <div key={epIndex} className="episode-item-wrapper">
-                          <button
-                            className={`episode-btn ${isHighlighted ? 'active' : ''}`}
-                            onClick={() => handlePlayEpisode(episode, epIndex, flagInfo.flag)}
-                          >
-                            {episode.name}
-                          </button>
-                          <button
-                            className="episode-download-btn"
-                            onClick={() => handleDownloadEpisode(episode, flagInfo.flag)}
-                            disabled={isDownloading}
-                            title="Download"
-                          >
-                            {isDownloading ? (
-                              <FiLoader className="spin" size={12} />
-                            ) : (
-                              <FiDownload size={12} />
-                            )}
-                          </button>
-                        </div>
+                        <button
+                          key={epIndex}
+                          className={`episode-btn ${isHighlighted ? 'active' : ''}`}
+                          onClick={() => handlePlayEpisode(episode, epIndex, flagInfo.flag)}
+                        >
+                          {episode.name}
+                        </button>
                       );
                     })}
                   </div>
@@ -176,6 +141,14 @@ export const VideoDetail: React.FC = () => {
             </div>
           )}
         </>
+      )}
+
+      {showCacheModal && (
+        <CacheModal
+          videoName={video.name}
+          playFlags={playFlags}
+          onClose={() => setShowCacheModal(false)}
+        />
       )}
     </div>
   );

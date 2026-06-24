@@ -3,13 +3,29 @@
 
 export function CreateProxySession(arg1:string,arg2:Record<string, string>):Promise<string>;
 
+export function DeleteCachedFile(arg1:string):Promise<boolean>;
+
+export function DownloadVideo(arg1:string,arg2:Record<string, string>,arg3:string):Promise<string>;
+
+export function GetCacheDir():Promise<string>;
+
+export function GetCachedFile(arg1:string):Promise<string>;
+
 export function GetClients():Promise<Array<Record<string, any>>>;
+
+export function GetDownloadProgress(arg1:string):Promise<Record<string, any>>;
 
 export function GetLocalIp():Promise<string>;
 
 export function GetWsServerStatus():Promise<Record<string, any>>;
 
+export function ListCachedFiles():Promise<Array<Record<string, any>>>;
+
+export function SelectCacheDir():Promise<string>;
+
 export function SendMessage(arg1:string,arg2:number,arg3:any):Promise<boolean>;
+
+export function SetCacheDir(arg1:string):Promise<boolean>;
 
 export function StartWsServer(arg1:number):Promise<boolean>;
 

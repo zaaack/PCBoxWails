@@ -6,8 +6,28 @@ export function CreateProxySession(arg1, arg2) {
   return window['go']['main']['WindowApp']['CreateProxySession'](arg1, arg2);
 }
 
+export function DeleteCachedFile(arg1) {
+  return window['go']['main']['WindowApp']['DeleteCachedFile'](arg1);
+}
+
+export function DownloadVideo(arg1, arg2, arg3) {
+  return window['go']['main']['WindowApp']['DownloadVideo'](arg1, arg2, arg3);
+}
+
+export function GetCacheDir() {
+  return window['go']['main']['WindowApp']['GetCacheDir']();
+}
+
+export function GetCachedFile(arg1) {
+  return window['go']['main']['WindowApp']['GetCachedFile'](arg1);
+}
+
 export function GetClients() {
   return window['go']['main']['WindowApp']['GetClients']();
+}
+
+export function GetDownloadProgress(arg1) {
+  return window['go']['main']['WindowApp']['GetDownloadProgress'](arg1);
 }
 
 export function GetLocalIp() {
@@ -18,8 +38,20 @@ export function GetWsServerStatus() {
   return window['go']['main']['WindowApp']['GetWsServerStatus']();
 }
 
+export function ListCachedFiles() {
+  return window['go']['main']['WindowApp']['ListCachedFiles']();
+}
+
+export function SelectCacheDir() {
+  return window['go']['main']['WindowApp']['SelectCacheDir']();
+}
+
 export function SendMessage(arg1, arg2, arg3) {
   return window['go']['main']['WindowApp']['SendMessage'](arg1, arg2, arg3);
+}
+
+export function SetCacheDir(arg1) {
+  return window['go']['main']['WindowApp']['SetCacheDir'](arg1);
 }
 
 export function StartWsServer(arg1) {
