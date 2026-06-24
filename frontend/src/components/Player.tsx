@@ -215,7 +215,8 @@ export const PlayerView: React.FC = () => {
       const cachedFile = await getCachedFile(result.url);
       if (cachedFile) {
         console.log('[PCBox] Using cached file:', cachedFile);
-        finalUrl = 'file://' + cachedFile.replace(/\\/g, '/');
+        const port = await api.getProxyPort();
+        finalUrl = `http://127.0.0.1:${port}/local?u=${encodeURIComponent(cachedFile)}`;
         finalHeaders = {};
       }
 

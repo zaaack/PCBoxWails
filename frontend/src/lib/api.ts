@@ -59,6 +59,7 @@ declare global {
           GetClients(): Promise<Array<{ id: string; name: string; connectedAt: number }>>;
           SendMessage(clientId: string, code: number, data: any): Promise<boolean>;
           CreateProxySession(url: string, headers: Record<string, string>): Promise<string>;
+          GetProxyPort(): Promise<number>;
           SetCacheDir(dir: string): Promise<boolean>;
           GetCacheDir(): Promise<string>;
           SelectCacheDir(): Promise<string>;
@@ -119,6 +120,8 @@ export const api = {
 
   createProxySession: (url: string, headers: Record<string, string>) =>
     window.go.main.App.CreateProxySession(url, headers),
+
+  getProxyPort: () => window.go.main.App.GetProxyPort(),
 
   setCacheDir: (dir: string) => window.go.main.App.SetCacheDir(dir),
   getCacheDir: () => window.go.main.App.GetCacheDir(),

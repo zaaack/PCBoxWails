@@ -198,7 +198,7 @@ interface AppState {
     url: string,
     headers?: Record<string, string>
   ) => void;
-  playFromCache: (filePath: string, isHLS: boolean, videoName: string) => void;
+  playFromCache: (filePath: string, isHLS: boolean, videoName: string) => Promise<void>;
   previousView: string;
   showCacheManager: boolean;
   setShowCacheManager: (v: boolean) => void;
@@ -335,8 +335,9 @@ export const useStore = create<AppState>((set, get) => ({
   playHeaders: {},
   setPlayState: (episode, episodeIndex, playFlag, url, headers = {}) =>
     set({ currentEpisode: episode, currentEpisodeIndex: episodeIndex, currentPlayFlag: playFlag, playUrl: url, playHeaders: headers }),
-  playFromCache: (filePath, isHLS, videoName) => {
-    const fileUrl = 'file://' + filePath.replace(/\\/g, '/');
+  playFromCache: async (filePath, isHLS, videoName) => {
+    const port = await api.getProxyPort();
+    const fileUrl = `http://127.0.0.1:${port}/local?u=${encodeURIComponent(filePath)}`;
     set({
       playUrl: fileUrl,
       playHeaders: {},

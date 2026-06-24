@@ -118,6 +118,13 @@ func (a *ServerApp) CreateProxySession(url string, headers map[string]string) st
 	return a.proxyServer.CreateSession(url, headers)
 }
 
+func (a *ServerApp) GetProxyPort() int {
+	if a.proxyServer == nil {
+		return 0
+	}
+	return a.proxyServer.Port()
+}
+
 func main() {
 	srv = &ServerApp{}
 	srv.startup()
@@ -248,6 +255,10 @@ func registerIPCMethods() {
 			return nil, err
 		}
 		return srv.CreateProxySession(p.URL, p.Headers), nil
+	})
+
+	ipcSrv.RegisterMethod("GetProxyPort", func(args json.RawMessage) (interface{}, error) {
+		return srv.GetProxyPort(), nil
 	})
 
 	_ = fmt.Sprintf

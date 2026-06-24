@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -42,6 +43,7 @@ func (p *ProxyServer) Start() error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/proxy", p.handleProxy)
+	mux.HandleFunc("/local", p.handleLocal)
 
 	p.server = &http.Server{
 		Handler: mux,
@@ -65,6 +67,56 @@ func (p *ProxyServer) Stop() {
 	p.mu.Lock()
 	p.sessions = make(map[string]*ProxySession)
 	p.mu.Unlock()
+}
+
+func (p *ProxyServer) Port() int {
+	return p.port
+}
+
+func (p *ProxyServer) handleLocal(w http.ResponseWriter, r *http.Request) {
+	filePath := r.URL.Query().Get("u")
+	if filePath == "" {
+		http.Error(w, "Missing u parameter", http.StatusBadRequest)
+		return
+	}
+
+	if strings.HasSuffix(filePath, ".m3u8") || strings.Contains(filePath, ".m3u8") {
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+		dir := filePath
+		if idx := strings.LastIndex(filePath, "\\"); idx >= 0 {
+			dir = filePath[:idx+1]
+		} else if idx := strings.LastIndex(filePath, "/"); idx >= 0 {
+			dir = filePath[:idx+1]
+		}
+		lines := strings.Split(string(content), "\n")
+		var result []string
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+				result = append(result, line)
+				continue
+			}
+			var resolved string
+			if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
+				resolved = trimmed
+			} else {
+				resolved = dir + trimmed
+			}
+			proxyURL := fmt.Sprintf("http://127.0.0.1:%d/local?u=%s", p.port, url.QueryEscape(resolved))
+			result = append(result, proxyURL)
+		}
+		w.Header().Set("Content-Type", "application/x-mpegURL")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Write([]byte(strings.Join(result, "\n")))
+		return
+	}
+
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	http.ServeFile(w, r, filePath)
 }
 
 func (p *ProxyServer) CreateSession(targetURL string, headers map[string]string) string {

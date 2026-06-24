@@ -98,11 +98,30 @@ func (a *WindowApp) CreateProxySession(url string, headers map[string]string) st
 	return toString(result)
 }
 
+func (a *WindowApp) GetProxyPort() int {
+	result, err := a.ipcClient.Call("GetProxyPort", nil)
+	if err != nil {
+		log.Printf("[Window] GetProxyPort error: %v", err)
+		return 0
+	}
+	return toInt(result)
+}
+
 func toBool(v interface{}) bool {
 	if b, ok := v.(bool); ok {
 		return b
 	}
 	return false
+}
+
+func toInt(v interface{}) int {
+	if f, ok := v.(float64); ok {
+		return int(f)
+	}
+	if i, ok := v.(int); ok {
+		return i
+	}
+	return 0
 }
 
 func toString(v interface{}) string {

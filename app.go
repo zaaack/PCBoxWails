@@ -128,6 +128,13 @@ func (a *App) CreateProxySession(url string, headers map[string]string) string {
 	return a.proxyServer.CreateSession(url, headers)
 }
 
+func (a *App) GetProxyPort() int {
+	if a.proxyServer == nil {
+		return 0
+	}
+	return a.proxyServer.Port()
+}
+
 func (a *App) SetCacheDir(dir string) {
 	if a.downloadManager == nil {
 		return
