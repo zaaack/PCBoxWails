@@ -1,0 +1,145 @@
+import React, { useEffect, useState } from 'react';
+import { useStore } from './store';
+import { api } from './lib/api';
+import { Sidebar } from './components/Sidebar';
+import { Home } from './components/Home';
+import { Search } from './components/Search';
+import { VideoDetail } from './components/VideoDetail';
+import { PlayerView } from './components/Player';
+import { History } from './components/History';
+import { Settings } from './components/Settings';
+
+const App: React.FC = () => {
+  const {
+    viewMode,
+    setWsStatus,
+    setLocalIp,
+    setConnectedClient,
+    setSources,
+    setCurrentSource,
+    topicCallbacks,
+    removeTopicCallback,
+    theme,
+    setTheme,
+  } = useStore();
+
+  const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    initApp();
+    setupListeners();
+    applyTheme();
+  }, []);
+
+  const applyTheme = () => {
+    const savedTheme = useStore.getState().theme;
+    const resolved = savedTheme === 'system'
+      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      : savedTheme;
+    document.documentElement.setAttribute('data-theme', resolved);
+  };
+
+  const initApp = async () => {
+    const ip = await api.getLocalIp();
+    if (ip) setLocalIp(ip);
+
+    const wsPort = 9898;
+    const success = await api.startWsServer(wsPort);
+    if (success) setWsStatus(true, wsPort);
+  };
+
+  const setupListeners = () => {
+    api.onClientConnected((client: any) => {
+      setConnectedClient(client);
+      setTimeout(() => loadSources(), 500);
+    });
+
+    api.onClientDisconnected(() => {
+      setConnectedClient(null);
+      setSources([]);
+    });
+
+    api.onWsResponse((response: any) => {
+      const state = useStore.getState();
+      const callback = state.topicCallbacks.get(response.topicId);
+      if (callback) {
+        callback(response.data);
+        state.removeTopicCallback(response.topicId);
+      }
+    });
+  };
+
+  const loadSources = async () => {
+    const topicId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+
+    useStore.getState().addTopicCallback(topicId, (data: any) => {
+      if (Array.isArray(data)) {
+        setSources(data);
+        if (data.length > 0) {
+          setCurrentSource(data[0]);
+          setTimeout(() => {
+            useStore.getState().loadHomeContent();
+          }, 300);
+        }
+      }
+    });
+
+    const client = useStore.getState().connectedClient;
+    if (client) {
+      api.sendMessage(client.id, 201, { topicId });
+    }
+  };
+
+  const handleStartServer = async (port: number) => {
+    const success = await api.startWsServer(port);
+    if (success) setWsStatus(true, port);
+  };
+
+  const handleStopServer = async () => {
+    await api.stopWsServer();
+    setWsStatus(false, 0);
+    setConnectedClient(null);
+  };
+
+  const renderContent = () => {
+    if (showSettings) {
+      return (
+        <Settings
+          onStartServer={handleStartServer}
+          onStopServer={handleStopServer}
+        />
+      );
+    }
+
+    switch (viewMode) {
+      case 'search':
+        return <Search />;
+      case 'detail':
+        return <VideoDetail />;
+      case 'player':
+        return <PlayerView />;
+      case 'history':
+        return <History />;
+      case 'home':
+      default:
+        return <Home />;
+    }
+  };
+
+  const isPlayer = viewMode === 'player';
+
+  return (
+    <div className={`app ${isPlayer ? 'app-fullscreen' : ''}`}>
+      {!isPlayer && (
+        <Sidebar
+          onOpenSettings={() => setShowSettings(!showSettings)}
+          showSettings={showSettings}
+          onNavigate={() => setShowSettings(false)}
+        />
+      )}
+      <main className="main-content">{renderContent()}</main>
+    </div>
+  );
+};
+
+export default App;
