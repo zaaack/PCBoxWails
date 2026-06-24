@@ -18,6 +18,16 @@ import {
 } from '../lib/converter';
 import { api, CachedVideo, DownloadProgress } from '../lib/api';
 
+export interface CacheTask {
+  epKey: string;
+  episode: EpisodeInfo;
+  playFlag: string;
+  status: 'pending' | 'resolving' | 'downloading' | 'completed' | 'failed';
+  progress: number;
+  error?: string;
+  downloadId?: string;
+}
+
 const MessageCodes = {
   REGISTER: 100,
   GET_SOURCE_BEAN_LIST: 201,
@@ -215,6 +225,15 @@ interface AppState {
   getCachedFile: (url: string) => Promise<string>;
   deleteCachedFile: (url: string) => Promise<boolean>;
 
+  cacheTasks: CacheTask[];
+  setCacheTasks: (tasks: CacheTask[]) => void;
+  updateCacheTask: (epKey: string, updates: Partial<CacheTask>) => void;
+  clearCacheTasks: () => void;
+  isCacheDownloading: boolean;
+  setIsCacheDownloading: (v: boolean) => void;
+  cacheToast: { message: string; type: 'success' | 'error' | 'info' } | null;
+  setCacheToast: (toast: { message: string; type: 'success' | 'error' | 'info' } | null) => void;
+
   topicCallbacks: Map<string, (data: any) => void>;
   addTopicCallback: (topicId: string, callback: (data: any) => void) => void;
   removeTopicCallback: (topicId: string) => void;
@@ -400,6 +419,21 @@ export const useStore = create<AppState>((set, get) => ({
       return false;
     }
   },
+
+  cacheTasks: [],
+  setCacheTasks: (tasks) => set({ cacheTasks: tasks }),
+  updateCacheTask: (epKey, updates) => {
+    const state = get();
+    const newTasks = state.cacheTasks.map((t) =>
+      t.epKey === epKey ? { ...t, ...updates } : t
+    );
+    set({ cacheTasks: newTasks });
+  },
+  clearCacheTasks: () => set({ cacheTasks: [] }),
+  isCacheDownloading: false,
+  setIsCacheDownloading: (v) => set({ isCacheDownloading: v }),
+  cacheToast: null,
+  setCacheToast: (toast) => set({ cacheToast: toast }),
 
   topicCallbacks: new Map(),
   addTopicCallback: (topicId, callback) => {

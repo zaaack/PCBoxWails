@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useStore } from '../store';
+import React, { useState, useEffect } from 'react';
+import { useStore, CacheTask } from '../store';
 import { FiX, FiDownload, FiCheck, FiLoader, FiInfo } from 'react-icons/fi';
 import { EpisodeInfo } from '../types';
 
@@ -9,40 +9,30 @@ interface CacheModalProps {
   onClose: () => void;
 }
 
-interface DownloadTask {
-  epKey: string;
-  episode: EpisodeInfo;
-  playFlag: string;
-  status: 'pending' | 'resolving' | 'downloading' | 'completed' | 'failed';
-  progress: number;
-  error?: string;
-}
-
 export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, onClose }) => {
   const {
     downloadVideo,
     loadPlayerContent,
-    downloadProgress,
     cachedVideos,
     loadCachedFiles,
     currentSource,
+    cacheTasks,
+    setCacheTasks,
+    updateCacheTask,
+    clearCacheTasks,
+    isCacheDownloading,
+    setIsCacheDownloading,
+    cacheToast,
+    setCacheToast,
   } = useStore();
 
   const [selectedEpisodes, setSelectedEpisodes] = useState<Set<string>>(new Set());
-  const [tasks, setTasks] = useState<DownloadTask[]>([]);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   useEffect(() => {
     loadCachedFiles();
   }, []);
 
-  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  }, []);
-
-  const isEpisodeCached = (episodeUrl: string, playFlag: string): boolean => {
+  const isEpisodeCached = (episodeUrl: string): boolean => {
     return cachedVideos.some((v) => v.url && v.videoName.includes(episodeUrl));
   };
 
@@ -67,12 +57,12 @@ export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, on
   };
 
   const startDownload = async () => {
-    if (selectedEpisodes.size === 0 || isDownloading) return;
+    if (selectedEpisodes.size === 0 || isCacheDownloading) return;
 
-    setIsDownloading(true);
+    setIsCacheDownloading(true);
     const selected = Array.from(selectedEpisodes);
 
-    const initialTasks: DownloadTask[] = selected.map((epKey) => {
+    const initialTasks: CacheTask[] = selected.map((epKey) => {
       const [flag, url] = epKey.split(/:(.*)/);
       const ep = playFlags
         .flatMap((f) => f.beanList)
@@ -86,77 +76,48 @@ export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, on
       };
     });
 
-    setTasks(initialTasks);
-    showToast(`Starting download of ${selected.length} episodes...`, 'info');
+    setCacheTasks(initialTasks);
+    setCacheToast({ message: `Starting download of ${selected.length} episodes...`, type: 'info' });
 
     const source = currentSource;
     if (!source) {
-      showToast('No source available', 'error');
-      setIsDownloading(false);
+      setCacheToast({ message: 'No source available', type: 'error' });
+      setIsCacheDownloading(false);
       return;
     }
 
     for (let i = 0; i < initialTasks.length; i++) {
       const task = initialTasks[i];
-      const taskIndex = i;
 
-      setTasks((prev) =>
-        prev.map((t, idx) =>
-          idx === taskIndex ? { ...t, status: 'resolving' } : t
-        )
-      );
+      updateCacheTask(task.epKey, { status: 'resolving' });
 
       try {
         const result = await loadPlayerContent(source.key, task.playFlag, task.episode.url);
         if (!result || !result.url) {
-          setTasks((prev) =>
-            prev.map((t, idx) =>
-              idx === taskIndex ? { ...t, status: 'failed', error: 'Failed to resolve URL' } : t
-            )
-          );
+          updateCacheTask(task.epKey, { status: 'failed', error: 'Failed to resolve URL' });
           continue;
         }
 
         const downloadId = await downloadVideo(result.url, result.headers || {}, `${videoName} - ${task.episode.name}`);
 
         if (!downloadId) {
-          setTasks((prev) =>
-            prev.map((t, idx) =>
-              idx === taskIndex ? { ...t, status: 'failed', error: 'Failed to start download' } : t
-            )
-          );
+          updateCacheTask(task.epKey, { status: 'failed', error: 'Failed to start download' });
           continue;
         }
 
-        setTasks((prev) =>
-          prev.map((t, idx) =>
-            idx === taskIndex ? { ...t, status: 'downloading' } : t
-          )
-        );
+        updateCacheTask(task.epKey, { status: 'downloading', downloadId });
 
         await new Promise<void>((resolve) => {
           const checkProgress = () => {
             const progress = useStore.getState().downloadProgress.get(downloadId);
             if (progress) {
-              setTasks((prev) =>
-                prev.map((t, idx) =>
-                  idx === taskIndex ? { ...t, progress: progress.progress } : t
-                )
-              );
+              updateCacheTask(task.epKey, { progress: progress.progress });
 
               if (progress.status === 'completed') {
-                setTasks((prev) =>
-                  prev.map((t, idx) =>
-                    idx === taskIndex ? { ...t, status: 'completed', progress: 100 } : t
-                  )
-                );
+                updateCacheTask(task.epKey, { status: 'completed', progress: 100 });
                 resolve();
               } else if (progress.status === 'failed') {
-                setTasks((prev) =>
-                  prev.map((t, idx) =>
-                    idx === taskIndex ? { ...t, status: 'failed', error: progress.error || 'Download failed' } : t
-                  )
-                );
+                updateCacheTask(task.epKey, { status: 'failed', error: progress.error || 'Download failed' });
                 resolve();
               } else {
                 setTimeout(checkProgress, 300);
@@ -168,33 +129,32 @@ export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, on
           checkProgress();
         });
       } catch (e) {
-        setTasks((prev) =>
-          prev.map((t, idx) =>
-            idx === taskIndex ? { ...t, status: 'failed', error: String(e) } : t
-          )
-        );
+        updateCacheTask(task.epKey, { status: 'failed', error: String(e) });
       }
     }
 
-    const finalTasks = useStore.getState().downloadProgress;
-    setIsDownloading(false);
+    setIsCacheDownloading(false);
     loadCachedFiles();
 
-    const completedCount = tasks.filter((t) => t.status === 'completed').length;
-    const failedCount = tasks.filter((t) => t.status === 'failed').length;
+    const currentTasks = useStore.getState().cacheTasks;
+    const completedCount = currentTasks.filter((t) => t.status === 'completed').length;
+    const failedCount = currentTasks.filter((t) => t.status === 'failed').length;
     if (failedCount === 0) {
-      showToast(`All ${completedCount} episodes downloaded successfully!`, 'success');
+      setCacheToast({ message: `All ${completedCount} episodes downloaded!`, type: 'success' });
     } else {
-      showToast(`Downloaded ${completedCount}, failed ${failedCount}`, failedCount > 0 ? 'error' : 'success');
+      setCacheToast({
+        message: `Downloaded ${completedCount}, failed ${failedCount}`,
+        type: failedCount > 0 ? 'error' : 'success',
+      });
     }
   };
 
-  const totalProgress = tasks.length > 0
-    ? tasks.reduce((sum, t) => sum + t.progress, 0) / tasks.length
+  const totalProgress = cacheTasks.length > 0
+    ? cacheTasks.reduce((sum, t) => sum + t.progress, 0) / cacheTasks.length
     : 0;
 
-  const completedCount = tasks.filter((t) => t.status === 'completed').length;
-  const activeTask = tasks.find((t) => t.status === 'resolving' || t.status === 'downloading');
+  const completedCount = cacheTasks.filter((t) => t.status === 'completed').length;
+  const activeTask = cacheTasks.find((t) => t.status === 'resolving' || t.status === 'downloading');
 
   return (
     <div className="cache-overlay" onClick={onClose}>
@@ -227,15 +187,15 @@ export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, on
                 {flagInfo.beanList.map((episode, epIndex) => {
                   const epKey = `${flagInfo.flag}:${episode.url}`;
                   const isSelected = selectedEpisodes.has(epKey);
-                  const task = tasks.find((t) => t.epKey === epKey);
-                  const cached = isEpisodeCached(episode.url, flagInfo.flag);
+                  const task = cacheTasks.find((t) => t.epKey === epKey);
+                  const cached = isEpisodeCached(episode.url);
 
                   return (
                     <button
                       key={epIndex}
-                      className={`cache-ep-btn ${isSelected ? 'selected' : ''} ${task?.status === 'completed' ? 'completed' : ''} ${task?.status === 'failed' ? 'failed' : ''} ${cached ? 'cached' : ''}`}
-                      onClick={() => !isDownloading && toggleEpisode(epKey)}
-                      disabled={isDownloading}
+                      className={`cache-ep-btn ${isSelected ? 'selected' : ''} ${task?.status === 'completed' ? 'completed' : ''} ${task?.status === 'failed' ? 'failed' : ''} ${cached && !task ? 'cached' : ''}`}
+                      onClick={() => !isCacheDownloading && toggleEpisode(epKey)}
+                      disabled={isCacheDownloading}
                     >
                       <span className="cache-ep-name">{episode.name}</span>
                       {task?.status === 'completed' && (
@@ -243,6 +203,9 @@ export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, on
                       )}
                       {task?.status === 'failed' && (
                         <FiX size={10} className="cache-ep-icon" />
+                      )}
+                      {task?.status === 'downloading' && (
+                        <FiLoader size={10} className="cache-ep-icon spin" />
                       )}
                       {cached && !task && (
                         <FiCheck size={10} className="cache-ep-icon cached-icon" />
@@ -255,7 +218,7 @@ export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, on
           ))}
         </div>
 
-        {(isDownloading || tasks.length > 0) && (
+        {(isCacheDownloading || cacheTasks.length > 0) && (
           <div className="cache-progress-section">
             <div className="cache-progress-bar-wrapper">
               <div
@@ -264,15 +227,15 @@ export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, on
               />
             </div>
             <div className="cache-progress-info">
-              {isDownloading && activeTask ? (
+              {isCacheDownloading && activeTask ? (
                 <span>
                   {activeTask.status === 'resolving'
                     ? `Resolving: ${activeTask.episode.name}...`
                     : `Downloading: ${activeTask.episode.name} (${Math.round(activeTask.progress)}%)`}
                 </span>
-              ) : tasks.length > 0 ? (
+              ) : cacheTasks.length > 0 ? (
                 <span>
-                  {completedCount}/{tasks.length} completed
+                  {completedCount}/{cacheTasks.length} completed
                 </span>
               ) : null}
             </div>
@@ -284,15 +247,20 @@ export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, on
             {selectedEpisodes.size} episode{selectedEpisodes.size !== 1 ? 's' : ''} selected
           </span>
           <div className="cache-footer-actions">
+            {cacheTasks.length > 0 && !isCacheDownloading && (
+              <button className="btn btn-sm btn-secondary" onClick={clearCacheTasks}>
+                Clear
+              </button>
+            )}
             <button className="btn btn-secondary" onClick={onClose}>
-              Cancel
+              {isCacheDownloading ? 'Hide' : 'Cancel'}
             </button>
             <button
               className="btn btn-primary"
               onClick={startDownload}
-              disabled={selectedEpisodes.size === 0 || isDownloading}
+              disabled={selectedEpisodes.size === 0 || isCacheDownloading}
             >
-              {isDownloading ? (
+              {isCacheDownloading ? (
                 <>
                   <FiLoader className="spin" size={14} /> Downloading...
                 </>
@@ -305,12 +273,12 @@ export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, on
           </div>
         </div>
 
-        {toast && (
-          <div className={`cache-toast cache-toast-${toast.type}`}>
-            {toast.type === 'success' && <FiCheck size={14} />}
-            {toast.type === 'error' && <FiX size={14} />}
-            {toast.type === 'info' && <FiInfo size={14} />}
-            <span>{toast.message}</span>
+        {cacheToast && (
+          <div className={`cache-toast cache-toast-${cacheToast.type}`}>
+            {cacheToast.type === 'success' && <FiCheck size={14} />}
+            {cacheToast.type === 'error' && <FiX size={14} />}
+            {cacheToast.type === 'info' && <FiInfo size={14} />}
+            <span>{cacheToast.message}</span>
           </div>
         )}
       </div>
