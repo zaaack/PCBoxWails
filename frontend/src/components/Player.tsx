@@ -313,6 +313,21 @@ export const PlayerView: React.FC = () => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [showEpisodePanel, isSystemFullscreen]);
 
+  const resetHideTimerRef = useRef(resetHideTimer);
+  resetHideTimerRef.current = resetHideTimer;
+
+  useEffect(() => {
+    const container = videoContainerRef.current;
+    if (!container) return;
+
+    const handleMouse = () => {
+      resetHideTimerRef.current();
+    };
+
+    container.addEventListener('mousemove', handleMouse);
+    return () => container.removeEventListener('mousemove', handleMouse);
+  }, [playUrl]);
+
   const handleMouseMove = () => {
     resetHideTimer();
   };
