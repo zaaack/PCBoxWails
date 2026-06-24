@@ -21,13 +21,13 @@ export function GetCachedFile(arg1:string):Promise<string>;
 
 export function GetClients():Promise<Array<Record<string, any>>>;
 
-export function GetProxyPort():Promise<number>;
-
 export function GetDownloadProgress(arg1:string):Promise<Record<string, any>>;
 
 export function GetDownloadQueue():Promise<Array<Record<string, any>>>;
 
 export function GetLocalIp():Promise<string>;
+
+export function GetProxyPort():Promise<number>;
 
 export function GetWsServerStatus():Promise<Record<string, any>>;
 

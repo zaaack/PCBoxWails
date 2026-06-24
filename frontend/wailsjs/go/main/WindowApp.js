@@ -42,10 +42,6 @@ export function GetClients() {
   return window['go']['main']['WindowApp']['GetClients']();
 }
 
-export function GetProxyPort() {
-  return window['go']['main']['WindowApp']['GetProxyPort']();
-}
-
 export function GetDownloadProgress(arg1) {
   return window['go']['main']['WindowApp']['GetDownloadProgress'](arg1);
 }
@@ -56,6 +52,10 @@ export function GetDownloadQueue() {
 
 export function GetLocalIp() {
   return window['go']['main']['WindowApp']['GetLocalIp']();
+}
+
+export function GetProxyPort() {
+  return window['go']['main']['WindowApp']['GetProxyPort']();
 }
 
 export function GetWsServerStatus() {

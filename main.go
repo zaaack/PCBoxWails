@@ -105,6 +105,12 @@ func runServer(ipcPort int) {
 // 	}
 
 	srv := &ServerApp{}
+	
+	if envBuild := os.Getenv("PCBOX_BUILD"); envBuild != "" {
+    		runWindow(ipcPort)
+    		return
+	}
+	
 	srv.startup()
 	defer srv.shutdown()
 
@@ -139,11 +145,6 @@ func runServer(ipcPort int) {
 
 	t.Show()
 	
-	if envBuild := os.Getenv("PCBOX_BUILD"); envBuild != "" {
-    		runWindow(ipcPort)
-    		return
-	}
-	
 	go showWindow(srv)
 	if err := t.Run(); err != nil {
 		log.Fatalf("[Tray] Run error: %v", err)
@@ -154,9 +155,10 @@ func runWindow(ipcPort int) {
 	wapp := NewWindowApp(ipcPort)
 
 	if err := wapp.ipcClient.Connect(); err != nil {
-		log.Fatalf("[Window] Failed to connect to server: %v", err)
+		log.Printf("[Window] Failed to connect to server: %v (continuing for binding generation)", err)
+	} else {
+		defer wapp.ipcClient.Close()
 	}
-	defer wapp.ipcClient.Close()
 
 	err := wails.Run(&options.App{
 		Title:     "PCBox",
