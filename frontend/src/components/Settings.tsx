@@ -10,13 +10,13 @@ interface SettingsProps {
 export const Settings: React.FC<SettingsProps> = ({ onStartServer, onStopServer }) => {
   const {
     wsRunning, wsPort, localIp, connectedClient, theme, setTheme, menuBarVisible, setMenuBarVisible,
-    cacheDir, loadCacheDir, selectCacheDir, cachedVideos, loadCachedFiles,
+    cacheDir, loadCacheDir, selectCacheDir, cacheStats, loadCacheStats,
   } = useStore();
   const [port, setPort] = useState(wsPort);
 
   useEffect(() => {
     loadCacheDir();
-    loadCachedFiles();
+    loadCacheStats();
   }, []);
 
   const formatSize = (bytes: number) => {
@@ -26,8 +26,6 @@ export const Settings: React.FC<SettingsProps> = ({ onStartServer, onStopServer 
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
-
-  const totalSize = cachedVideos.reduce((sum, v) => sum + (v.size || 0), 0);
 
   return (
     <div className="settings">
@@ -139,7 +137,7 @@ export const Settings: React.FC<SettingsProps> = ({ onStartServer, onStopServer 
         </div>
         <div className="settings-row">
           <label>Cached Videos:</label>
-          <span>{cachedVideos.length} ({formatSize(totalSize)})</span>
+          <span>{cacheStats.total} ({formatSize(cacheStats.totalSize)})</span>
         </div>
       </div>
     </div>

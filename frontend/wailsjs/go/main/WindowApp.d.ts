@@ -5,9 +5,15 @@ export function CreateProxySession(arg1:string,arg2:Record<string, string>):Prom
 
 export function DeleteCachedFile(arg1:string):Promise<boolean>;
 
+export function DeleteCacheBatch(arg1:Array<number>):Promise<number>;
+
+export function DeleteCacheByID(arg1:number):Promise<boolean>;
+
 export function DownloadVideo(arg1:string,arg2:Record<string, string>,arg3:string):Promise<string>;
 
 export function GetCacheDir():Promise<string>;
+
+export function GetCacheStats():Promise<Record<string, any>>;
 
 export function GetCachedFile(arg1:string):Promise<string>;
 
@@ -15,11 +21,17 @@ export function GetClients():Promise<Array<Record<string, any>>>;
 
 export function GetDownloadProgress(arg1:string):Promise<Record<string, any>>;
 
+export function GetDownloadQueue():Promise<Array<Record<string, any>>>;
+
 export function GetLocalIp():Promise<string>;
 
 export function GetWsServerStatus():Promise<Record<string, any>>;
 
 export function ListCachedFiles():Promise<Array<Record<string, any>>>;
+
+export function ListCachedFilesPaged(arg1:number,arg2:number,arg3:string):Promise<Record<string, any>>>;
+
+export function CancelDownload(arg1:string):Promise<boolean>;
 
 export function SelectCacheDir():Promise<string>;
 

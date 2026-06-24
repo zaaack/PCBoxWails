@@ -16,7 +16,7 @@ import {
   TvBoxMovieSort,
   TvBoxVideo,
 } from '../lib/converter';
-import { api, CachedVideo, DownloadProgress } from '../lib/api';
+import { api, CachedVideo, DownloadProgress, DownloadRecord, PagedResult, CacheStats } from '../lib/api';
 
 export interface CacheTask {
   epKey: string;
@@ -26,6 +26,14 @@ export interface CacheTask {
   progress: number;
   error?: string;
   downloadId?: string;
+}
+
+export interface ToastItem {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info';
+  action?: { label: string; onClick: () => void };
+  duration?: number;
 }
 
 const MessageCodes = {
@@ -234,6 +242,26 @@ interface AppState {
   cacheToast: { message: string; type: 'success' | 'error' | 'info' } | null;
   setCacheToast: (toast: { message: string; type: 'success' | 'error' | 'info' } | null) => void;
 
+  toasts: ToastItem[];
+  addToast: (toast: Omit<ToastItem, 'id'>) => void;
+  removeToast: (id: string) => void;
+
+  downloadQueue: DownloadRecord[];
+  loadDownloadQueue: () => void;
+  cancelDownload: (id: string) => Promise<boolean>;
+
+  cacheStats: CacheStats;
+  loadCacheStats: () => void;
+  cachePage: number;
+  setCachePage: (page: number) => void;
+  cacheKeyword: string;
+  setCacheKeyword: (keyword: string) => void;
+  cachedFilesPaged: DownloadRecord[];
+  cachedFilesTotal: number;
+  loadCachedFilesPaged: (page: number, keyword?: string) => void;
+  deleteCacheById: (id: number) => Promise<boolean>;
+  deleteCacheBatch: (ids: number[]) => Promise<number>;
+
   topicCallbacks: Map<string, (data: any) => void>;
   addTopicCallback: (topicId: string, callback: (data: any) => void) => void;
   removeTopicCallback: (topicId: string) => void;
@@ -434,6 +462,89 @@ export const useStore = create<AppState>((set, get) => ({
   setIsCacheDownloading: (v) => set({ isCacheDownloading: v }),
   cacheToast: null,
   setCacheToast: (toast) => set({ cacheToast: toast }),
+
+  toasts: [],
+  addToast: (toast) => {
+    const id = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    set((state) => ({ toasts: [...state.toasts, { ...toast, id }] }));
+  },
+  removeToast: (id) => {
+    set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
+  },
+
+  downloadQueue: [],
+  loadDownloadQueue: async () => {
+    try {
+      const queue = await api.getDownloadQueue();
+      set({ downloadQueue: queue });
+    } catch (e) {
+      console.warn('[PCBox] Failed to load download queue:', e);
+    }
+  },
+  cancelDownload: async (id) => {
+    try {
+      const result = await api.cancelDownload(id);
+      if (result) {
+        get().loadDownloadQueue();
+      }
+      return result;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  cacheStats: { total: 0, totalSize: 0, pending: 0 },
+  loadCacheStats: async () => {
+    try {
+      const stats = await api.getCacheStats();
+      set({ cacheStats: stats });
+    } catch (e) {
+      console.warn('[PCBox] Failed to load cache stats:', e);
+    }
+  },
+  cachePage: 1,
+  setCachePage: (page) => set({ cachePage: page }),
+  cacheKeyword: '',
+  setCacheKeyword: (keyword) => set({ cacheKeyword: keyword }),
+  cachedFilesPaged: [],
+  cachedFilesTotal: 0,
+  loadCachedFilesPaged: async (page, keyword) => {
+    try {
+      const kw = keyword ?? get().cacheKeyword;
+      const result = await api.listCachedFilesPaged(page, 20, kw);
+      set({
+        cachedFilesPaged: result.records || [],
+        cachedFilesTotal: result.total || 0,
+        cachePage: page,
+      });
+    } catch (e) {
+      console.warn('[PCBox] Failed to load cached files paged:', e);
+    }
+  },
+  deleteCacheById: async (id) => {
+    try {
+      const result = await api.deleteCacheById(id);
+      if (result) {
+        get().loadCachedFilesPaged(get().cachePage);
+        get().loadCacheStats();
+      }
+      return result;
+    } catch (e) {
+      return false;
+    }
+  },
+  deleteCacheBatch: async (ids) => {
+    try {
+      const result = await api.deleteCacheBatch(ids);
+      if (result > 0) {
+        get().loadCachedFilesPaged(get().cachePage);
+        get().loadCacheStats();
+      }
+      return result;
+    } catch (e) {
+      return 0;
+    }
+  },
 
   topicCallbacks: new Map(),
   addTopicCallback: (topicId, callback) => {

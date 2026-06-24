@@ -8,6 +8,8 @@ import { VideoDetail } from './components/VideoDetail';
 import { PlayerView } from './components/Player';
 import { History } from './components/History';
 import { Settings } from './components/Settings';
+import { CacheManager } from './components/CacheManager';
+import { GlobalToast } from './components/Toast';
 
 const App: React.FC = () => {
   const {
@@ -23,15 +25,20 @@ const App: React.FC = () => {
     setTheme,
     setDownloadProgress,
     loadCacheDir,
+    addToast,
+    downloadQueue,
+    loadDownloadQueue,
   } = useStore();
 
   const [showSettings, setShowSettings] = useState(false);
+  const [showCacheManager, setShowCacheManager] = useState(false);
 
   useEffect(() => {
     initApp();
     setupListeners();
     applyTheme();
     loadCacheDir();
+    checkPendingDownloads();
   }, []);
 
   const applyTheme = () => {
@@ -75,6 +82,32 @@ const App: React.FC = () => {
       if (success) setWsStatus(true, wsPort);
     } catch (e) {
       console.warn('[PCBox] startWsServer failed:', e);
+    }
+  };
+
+  const checkPendingDownloads = async () => {
+    try {
+      const queue = await api.getDownloadQueue();
+      if (queue.length > 0) {
+        loadDownloadQueue();
+        addToast({
+          message: `Resuming ${queue.length} download(s)...`,
+          type: 'info',
+          action: {
+            label: 'Cancel All',
+            onClick: async () => {
+              for (const item of queue) {
+                await api.cancelDownload(item.urlHash);
+              }
+              loadDownloadQueue();
+              addToast({ message: 'All downloads cancelled', type: 'success' });
+            },
+          },
+          duration: 8000,
+        });
+      }
+    } catch (e) {
+      console.warn('[PCBox] checkPendingDownloads failed:', e);
     }
   };
 
@@ -150,6 +183,9 @@ const App: React.FC = () => {
   };
 
   const renderContent = () => {
+    if (showCacheManager) {
+      return <CacheManager />;
+    }
     if (showSettings) {
       return (
         <Settings
@@ -180,12 +216,15 @@ const App: React.FC = () => {
     <div className={`app ${isPlayer ? 'app-fullscreen' : ''}`}>
       {!isPlayer && (
         <Sidebar
-          onOpenSettings={() => setShowSettings(!showSettings)}
+          onOpenSettings={() => { setShowSettings(!showSettings); setShowCacheManager(false); }}
           showSettings={showSettings}
-          onNavigate={() => setShowSettings(false)}
+          onNavigate={() => { setShowSettings(false); setShowCacheManager(false); }}
+          onOpenCacheManager={() => { setShowCacheManager(!showCacheManager); setShowSettings(false); }}
+          showCacheManager={showCacheManager}
         />
       )}
       <main className="main-content">{renderContent()}</main>
+      <GlobalToast />
     </div>
   );
 };

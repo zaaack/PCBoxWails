@@ -24,6 +24,9 @@ func (a *ServerApp) startup() {
 	a.proxyServer = server.NewProxyServer()
 	a.proxyServer.Start()
 	a.downloadManager = NewDownloadManager()
+	a.downloadManager.ResumePendingDownloads(func(id string, progress DownloadProgress) {
+		a.emitEvent("download-progress", progress)
+	})
 	a.wsServer = server.NewWsServer(a.emitEvent)
 	a.wsServer.Start(9898)
 	log.Println("[PCBox] WebSocket server started on port 9898")
@@ -164,6 +167,52 @@ func (a *ServerApp) DeleteCachedFile(rawURL string) bool {
 	return a.downloadManager.DeleteCachedFile(rawURL)
 }
 
+func (a *ServerApp) GetDownloadQueue() []DownloadRecord {
+	if a.downloadManager == nil {
+		return []DownloadRecord{}
+	}
+	return a.downloadManager.GetDownloadQueue()
+}
+
+func (a *ServerApp) CancelDownload(id string) bool {
+	if a.downloadManager == nil {
+		return false
+	}
+	return a.downloadManager.CancelDownload(id)
+}
+
+func (a *ServerApp) ListCachedFilesPaged(page int, pageSize int, keyword string) ([]DownloadRecord, int64) {
+	if a.downloadManager == nil {
+		return []DownloadRecord{}, 0
+	}
+	return a.downloadManager.ListCachedFilesPaged(page, pageSize, keyword)
+}
+
+func (a *ServerApp) DeleteCacheByID(id int) bool {
+	if a.downloadManager == nil {
+		return false
+	}
+	return a.downloadManager.DeleteCacheByID(uint(id))
+}
+
+func (a *ServerApp) DeleteCacheBatch(ids []int) int {
+	if a.downloadManager == nil {
+		return 0
+	}
+	uintIds := make([]uint, len(ids))
+	for i, id := range ids {
+		uintIds[i] = uint(id)
+	}
+	return a.downloadManager.DeleteCacheBatch(uintIds)
+}
+
+func (a *ServerApp) GetCacheStats() map[string]interface{} {
+	if a.downloadManager == nil {
+		return map[string]interface{}{"total": 0, "totalSize": 0, "pending": 0}
+	}
+	return a.downloadManager.GetCacheStats()
+}
+
 func registerIPCMethods(srv *ServerApp, ipcSrv *ipc.IPCServer) {
 	ipcSrv.RegisterMethod("StartWsServer", func(args json.RawMessage) (interface{}, error) {
 		var port int
@@ -265,5 +314,61 @@ func registerIPCMethods(srv *ServerApp, ipcSrv *ipc.IPCServer) {
 			return nil, err
 		}
 		return srv.DeleteCachedFile(rawURL), nil
+	})
+
+	ipcSrv.RegisterMethod("GetDownloadQueue", func(args json.RawMessage) (interface{}, error) {
+		return srv.GetDownloadQueue(), nil
+	})
+
+	ipcSrv.RegisterMethod("CancelDownload", func(args json.RawMessage) (interface{}, error) {
+		var id string
+		if err := json.Unmarshal(args, &id); err != nil {
+			return nil, err
+		}
+		return srv.CancelDownload(id), nil
+	})
+
+	ipcSrv.RegisterMethod("ListCachedFilesPaged", func(args json.RawMessage) (interface{}, error) {
+		var p struct {
+			Page     int    `json:"page"`
+			PageSize int    `json:"pageSize"`
+			Keyword  string `json:"keyword"`
+		}
+		if err := json.Unmarshal(args, &p); err != nil {
+			return nil, err
+		}
+		if p.Page <= 0 {
+			p.Page = 1
+		}
+		if p.PageSize <= 0 {
+			p.PageSize = 20
+		}
+		records, total := srv.ListCachedFilesPaged(p.Page, p.PageSize, p.Keyword)
+		return map[string]interface{}{
+			"records": records,
+			"total":   total,
+			"page":    p.Page,
+			"pageSize": p.PageSize,
+		}, nil
+	})
+
+	ipcSrv.RegisterMethod("DeleteCacheByID", func(args json.RawMessage) (interface{}, error) {
+		var id int
+		if err := json.Unmarshal(args, &id); err != nil {
+			return nil, err
+		}
+		return srv.DeleteCacheByID(id), nil
+	})
+
+	ipcSrv.RegisterMethod("DeleteCacheBatch", func(args json.RawMessage) (interface{}, error) {
+		var ids []int
+		if err := json.Unmarshal(args, &ids); err != nil {
+			return nil, err
+		}
+		return srv.DeleteCacheBatch(ids), nil
+	})
+
+	ipcSrv.RegisterMethod("GetCacheStats", func(args json.RawMessage) (interface{}, error) {
+		return srv.GetCacheStats(), nil
 	})
 }

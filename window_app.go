@@ -190,6 +190,67 @@ func (a *WindowApp) DeleteCachedFile(rawURL string) bool {
 	return toBool(result)
 }
 
+func (a *WindowApp) GetDownloadQueue() []map[string]interface{} {
+	result, err := a.ipcClient.Call("GetDownloadQueue", nil)
+	if err != nil {
+		log.Printf("[Window] GetDownloadQueue error: %v", err)
+		return []map[string]interface{}{}
+	}
+	return toSlice(result)
+}
+
+func (a *WindowApp) CancelDownload(id string) bool {
+	result, err := a.ipcClient.Call("CancelDownload", id)
+	if err != nil {
+		log.Printf("[Window] CancelDownload error: %v", err)
+		return false
+	}
+	return toBool(result)
+}
+
+func (a *WindowApp) ListCachedFilesPaged(page int, pageSize int, keyword string) map[string]interface{} {
+	result, err := a.ipcClient.Call("ListCachedFilesPaged", map[string]interface{}{
+		"page":     page,
+		"pageSize": pageSize,
+		"keyword":  keyword,
+	})
+	if err != nil {
+		log.Printf("[Window] ListCachedFilesPaged error: %v", err)
+		return map[string]interface{}{"records": []interface{}{}, "total": 0}
+	}
+	return toMap(result)
+}
+
+func (a *WindowApp) DeleteCacheByID(id int) bool {
+	result, err := a.ipcClient.Call("DeleteCacheByID", id)
+	if err != nil {
+		log.Printf("[Window] DeleteCacheByID error: %v", err)
+		return false
+	}
+	return toBool(result)
+}
+
+func (a *WindowApp) DeleteCacheBatch(ids []int) int {
+	result, err := a.ipcClient.Call("DeleteCacheBatch", ids)
+	if err != nil {
+		log.Printf("[Window] DeleteCacheBatch error: %v", err)
+		return 0
+	}
+	if v, ok := result.(float64); ok {
+		return int(v)
+	}
+	return 0
+}
+
+func (a *WindowApp) GetCacheStats() map[string]interface{} {
+	result, err := a.ipcClient.Call("GetCacheStats", nil)
+	if err != nil {
+		log.Printf("[Window] GetCacheStats error: %v", err)
+		return map[string]interface{}{"total": 0, "totalSize": 0, "pending": 0}
+	}
+	return toMap(result)
+}
+
 func toBool(v interface{}) bool {
 	if b, ok := v.(bool); ok {
 		return b

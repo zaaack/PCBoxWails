@@ -18,6 +18,35 @@ export interface DownloadProgress {
   error?: string;
 }
 
+export interface DownloadRecord {
+  id: number;
+  urlHash: string;
+  url: string;
+  headers: string;
+  videoName: string;
+  filePath: string;
+  isHLS: boolean;
+  size: number;
+  status: string;
+  progress: number;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PagedResult {
+  records: DownloadRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface CacheStats {
+  total: number;
+  totalSize: number;
+  pending: number;
+}
+
 declare global {
   interface Window {
     go: {
@@ -38,6 +67,12 @@ declare global {
           GetDownloadProgress(id: string): Promise<DownloadProgress | null>;
           ListCachedFiles(): Promise<CachedVideo[]>;
           DeleteCachedFile(url: string): Promise<boolean>;
+          GetDownloadQueue(): Promise<DownloadRecord[]>;
+          CancelDownload(id: string): Promise<boolean>;
+          ListCachedFilesPaged(page: number, pageSize: number, keyword: string): Promise<PagedResult>;
+          DeleteCacheByID(id: number): Promise<boolean>;
+          DeleteCacheBatch(ids: number[]): Promise<number>;
+          GetCacheStats(): Promise<CacheStats>;
         };
       };
     };
@@ -94,6 +129,13 @@ export const api = {
   getDownloadProgress: (id: string) => window.go.main.App.GetDownloadProgress(id),
   listCachedFiles: () => window.go.main.App.ListCachedFiles(),
   deleteCachedFile: (url: string) => window.go.main.App.DeleteCachedFile(url),
+  getDownloadQueue: () => window.go.main.App.GetDownloadQueue(),
+  cancelDownload: (id: string) => window.go.main.App.CancelDownload(id),
+  listCachedFilesPaged: (page: number, pageSize: number, keyword: string) =>
+    window.go.main.App.ListCachedFilesPaged(page, pageSize, keyword),
+  deleteCacheById: (id: number) => window.go.main.App.DeleteCacheByID(id),
+  deleteCacheBatch: (ids: number[]) => window.go.main.App.DeleteCacheBatch(ids),
+  getCacheStats: () => window.go.main.App.GetCacheStats(),
 
   onClientConnected: (callback: ClientConnectedCallback) => {
     clientConnectedListeners.push(callback);

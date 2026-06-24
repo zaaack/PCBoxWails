@@ -10,12 +10,24 @@ export function DeleteCachedFile(arg1) {
   return window['go']['main']['WindowApp']['DeleteCachedFile'](arg1);
 }
 
+export function DeleteCacheBatch(arg1) {
+  return window['go']['main']['WindowApp']['DeleteCacheBatch'](arg1);
+}
+
+export function DeleteCacheByID(arg1) {
+  return window['go']['main']['WindowApp']['DeleteCacheByID'](arg1);
+}
+
 export function DownloadVideo(arg1, arg2, arg3) {
   return window['go']['main']['WindowApp']['DownloadVideo'](arg1, arg2, arg3);
 }
 
 export function GetCacheDir() {
   return window['go']['main']['WindowApp']['GetCacheDir']();
+}
+
+export function GetCacheStats() {
+  return window['go']['main']['WindowApp']['GetCacheStats']();
 }
 
 export function GetCachedFile(arg1) {
@@ -30,6 +42,10 @@ export function GetDownloadProgress(arg1) {
   return window['go']['main']['WindowApp']['GetDownloadProgress'](arg1);
 }
 
+export function GetDownloadQueue() {
+  return window['go']['main']['WindowApp']['GetDownloadQueue']();
+}
+
 export function GetLocalIp() {
   return window['go']['main']['WindowApp']['GetLocalIp']();
 }
@@ -40,6 +56,14 @@ export function GetWsServerStatus() {
 
 export function ListCachedFiles() {
   return window['go']['main']['WindowApp']['ListCachedFiles']();
+}
+
+export function ListCachedFilesPaged(arg1, arg2, arg3) {
+  return window['go']['main']['WindowApp']['ListCachedFilesPaged'](arg1, arg2, arg3);
+}
+
+export function CancelDownload(arg1) {
+  return window['go']['main']['WindowApp']['CancelDownload'](arg1);
 }
 
 export function SelectCacheDir() {

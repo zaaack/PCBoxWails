@@ -1,15 +1,17 @@
 import React from 'react';
 import { useStore } from '../store';
 import { SourceBean } from '../types';
-import { FiHome, FiSearch, FiClock, FiSettings } from 'react-icons/fi';
+import { FiHome, FiSearch, FiClock, FiSettings, FiHardDrive } from 'react-icons/fi';
 
 interface SidebarProps {
   onOpenSettings: () => void;
   showSettings: boolean;
   onNavigate: () => void;
+  onOpenCacheManager: () => void;
+  showCacheManager: boolean;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, showSettings, onNavigate }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, showSettings, onNavigate, onOpenCacheManager, showCacheManager }) => {
   const {
     viewMode,
     setViewMode,
@@ -51,7 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, showSettings, 
 
       <nav className="sidebar-nav">
         <button
-          className={`nav-item ${!showSettings && viewMode === 'home' ? 'active' : ''}`}
+          className={`nav-item ${!showSettings && !showCacheManager && viewMode === 'home' ? 'active' : ''}`}
           onClick={() => { onNavigate(); setViewMode('home'); }}
           title="Home"
         >
@@ -59,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, showSettings, 
         </button>
 
         <button
-          className={`nav-item ${!showSettings && viewMode === 'search' ? 'active' : ''}`}
+          className={`nav-item ${!showSettings && !showCacheManager && viewMode === 'search' ? 'active' : ''}`}
           onClick={() => { onNavigate(); setViewMode('search'); }}
           title="Search"
         >
@@ -67,11 +69,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenSettings, showSettings, 
         </button>
 
         <button
-          className={`nav-item ${!showSettings && viewMode === 'history' ? 'active' : ''}`}
+          className={`nav-item ${!showSettings && !showCacheManager && viewMode === 'history' ? 'active' : ''}`}
           onClick={() => { onNavigate(); setViewMode('history'); }}
           title="History"
         >
           <span className="nav-icon"><FiClock size={16} /></span>
+        </button>
+
+        <button
+          className={`nav-item ${showCacheManager ? 'active' : ''}`}
+          onClick={onOpenCacheManager}
+          title="Cache Manager"
+        >
+          <span className="nav-icon"><FiHardDrive size={16} /></span>
         </button>
 
         <button

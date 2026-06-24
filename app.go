@@ -32,6 +32,9 @@ func (a *App) startup(ctx context.Context) {
 	a.proxyServer = NewProxyServer()
 	a.proxyServer.Start()
 	a.downloadManager = NewDownloadManager()
+	a.downloadManager.ResumePendingDownloads(func(id string, progress DownloadProgress) {
+		a.emitEvent("download-progress", progress)
+	})
 	log.Println("[PCBox] Proxy server started")
 }
 
@@ -188,4 +191,50 @@ func (a *App) DeleteCachedFile(rawURL string) bool {
 		return false
 	}
 	return a.downloadManager.DeleteCachedFile(rawURL)
+}
+
+func (a *App) GetDownloadQueue() []DownloadRecord {
+	if a.downloadManager == nil {
+		return []DownloadRecord{}
+	}
+	return a.downloadManager.GetDownloadQueue()
+}
+
+func (a *App) CancelDownload(id string) bool {
+	if a.downloadManager == nil {
+		return false
+	}
+	return a.downloadManager.CancelDownload(id)
+}
+
+func (a *App) ListCachedFilesPaged(page int, pageSize int, keyword string) ([]DownloadRecord, int64) {
+	if a.downloadManager == nil {
+		return []DownloadRecord{}, 0
+	}
+	return a.downloadManager.ListCachedFilesPaged(page, pageSize, keyword)
+}
+
+func (a *App) DeleteCacheByID(id int) bool {
+	if a.downloadManager == nil {
+		return false
+	}
+	return a.downloadManager.DeleteCacheByID(uint(id))
+}
+
+func (a *App) DeleteCacheBatch(ids []int) int {
+	if a.downloadManager == nil {
+		return 0
+	}
+	uintIds := make([]uint, len(ids))
+	for i, id := range ids {
+		uintIds[i] = uint(id)
+	}
+	return a.downloadManager.DeleteCacheBatch(uintIds)
+}
+
+func (a *App) GetCacheStats() map[string]interface{} {
+	if a.downloadManager == nil {
+		return map[string]interface{}{"total": 0, "totalSize": 0, "pending": 0}
+	}
+	return a.downloadManager.GetCacheStats()
 }

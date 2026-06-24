@@ -16,6 +16,13 @@ import (
 
 const defaultUA2 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
 
+type DownloadProgress struct {
+	ID       string  `json:"id"`
+	Progress float64 `json:"progress"`
+	Status   string  `json:"status"` // "downloading", "completed", "failed"
+	Error    string  `json:"error,omitempty"`
+}
+
 type CachedVideo struct {
 	ID        string `json:"id"`
 	URL       string `json:"url"`
@@ -25,32 +32,23 @@ type CachedVideo struct {
 	Size      int64  `json:"size"`
 }
 
-type DownloadProgress struct {
-	ID       string  `json:"id"`
-	Progress float64 `json:"progress"`
-	Status   string  `json:"status"` // "downloading", "completed", "failed"
-	Error    string  `json:"error,omitempty"`
-}
-
 type CacheIndex struct {
 	Videos map[string]*CachedVideo `json:"videos"`
 }
 
 type DownloadManager struct {
 	cacheDir    string
-	index       *CacheIndex
+	cacheDB     *CacheDB
 	downloads   map[string]*DownloadProgress
-	indexMu     sync.RWMutex
 	downloadsMu sync.RWMutex
 }
 
 func NewDownloadManager() *DownloadManager {
 	dm := &DownloadManager{
 		downloads: make(map[string]*DownloadProgress),
-		index:     &CacheIndex{Videos: make(map[string]*CachedVideo)},
 	}
 	dm.cacheDir = dm.defaultCacheDir()
-	dm.loadIndex()
+	dm.cacheDB = NewCacheDB(dm.cacheDir)
 	return dm
 }
 
@@ -63,46 +61,13 @@ func (dm *DownloadManager) defaultCacheDir() string {
 }
 
 func (dm *DownloadManager) SetCacheDir(dir string) {
-	dm.indexMu.Lock()
-	defer dm.indexMu.Unlock()
 	dm.cacheDir = dir
 	os.MkdirAll(dir, 0755)
-	dm.loadIndex()
+	dm.cacheDB = NewCacheDB(dir)
 }
 
 func (dm *DownloadManager) GetCacheDir() string {
-	dm.indexMu.RLock()
-	defer dm.indexMu.RUnlock()
 	return dm.cacheDir
-}
-
-func (dm *DownloadManager) GetCacheIndexFilePath() string {
-	return filepath.Join(dm.cacheDir, "cache-index.json")
-}
-
-func (dm *DownloadManager) loadIndex() {
-	data, err := os.ReadFile(dm.GetCacheIndexFilePath())
-	if err != nil {
-		return
-	}
-	var idx CacheIndex
-	if err := json.Unmarshal(data, &idx); err != nil {
-		log.Printf("[Cache] Failed to load index: %v", err)
-		return
-	}
-	if idx.Videos == nil {
-		idx.Videos = make(map[string]*CachedVideo)
-	}
-	dm.index = &idx
-}
-
-func (dm *DownloadManager) saveIndex() {
-	data, err := json.MarshalIndent(dm.index, "", "  ")
-	if err != nil {
-		log.Printf("[Cache] Failed to marshal index: %v", err)
-		return
-	}
-	os.WriteFile(dm.GetCacheIndexFilePath(), data, 0644)
 }
 
 func urlHash(rawURL string) string {
@@ -116,53 +81,158 @@ func isHLSURL(rawURL string) bool {
 }
 
 func (dm *DownloadManager) GetCachedFile(rawURL string) string {
-	dm.indexMu.RLock()
-	defer dm.indexMu.RUnlock()
-
 	id := urlHash(rawURL)
-	cached, ok := dm.index.Videos[id]
-	if !ok {
+	var record DownloadRecord
+	result := dm.cacheDB.db.Where("url_hash = ? AND status = ?", id, "completed").First(&record)
+	if result.Error != nil {
 		return ""
 	}
-
-	if _, err := os.Stat(cached.FilePath); os.IsNotExist(err) {
+	if _, err := os.Stat(record.FilePath); os.IsNotExist(err) {
 		return ""
 	}
-
-	return cached.FilePath
+	return record.FilePath
 }
 
 func (dm *DownloadManager) ListCachedFiles() []*CachedVideo {
-	dm.indexMu.RLock()
-	defer dm.indexMu.RUnlock()
-
-	result := make([]*CachedVideo, 0, len(dm.index.Videos))
-	for _, v := range dm.index.Videos {
-		result = append(result, v)
+	var records []DownloadRecord
+	dm.cacheDB.db.Where("status = ?", "completed").Find(&records)
+	result := make([]*CachedVideo, 0, len(records))
+	for _, r := range records {
+		result = append(result, &CachedVideo{
+			ID:        r.URLHash,
+			URL:       r.URL,
+			VideoName: r.VideoName,
+			FilePath:  r.FilePath,
+			IsHLS:     r.IsHLS,
+			Size:      r.Size,
+		})
 	}
 	return result
 }
 
-func (dm *DownloadManager) DeleteCachedFile(rawURL string) bool {
-	dm.indexMu.Lock()
-	defer dm.indexMu.Unlock()
+func (dm *DownloadManager) ListCachedFilesPaged(page, pageSize int, keyword string) ([]DownloadRecord, int64) {
+	query := dm.cacheDB.db.Where("status = ?", "completed")
+	if keyword != "" {
+		query = query.Where("video_name LIKE ?", "%"+keyword+"%")
+	}
+	var total int64
+	query.Model(&DownloadRecord{}).Count(&total)
+	var records []DownloadRecord
+	query.Order("updated_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&records)
+	return records, total
+}
 
+func (dm *DownloadManager) DeleteCachedFile(rawURL string) bool {
 	id := urlHash(rawURL)
-	cached, ok := dm.index.Videos[id]
-	if !ok {
+	var record DownloadRecord
+	result := dm.cacheDB.db.Where("url_hash = ?", id).First(&record)
+	if result.Error != nil {
 		return false
 	}
-
-	os.RemoveAll(cached.FilePath)
-	delete(dm.index.Videos, id)
-	dm.saveIndex()
+	if record.FilePath != "" {
+		os.RemoveAll(record.FilePath)
+		hlsDir := filepath.Join(dm.cacheDir, fmt.Sprintf("hls_%s", id[:8]))
+		os.RemoveAll(hlsDir)
+	}
+	dm.cacheDB.db.Delete(&record)
 	return true
+}
+
+func (dm *DownloadManager) DeleteCacheByID(id uint) bool {
+	var record DownloadRecord
+	result := dm.cacheDB.db.First(&record, id)
+	if result.Error != nil {
+		return false
+	}
+	if record.FilePath != "" {
+		os.RemoveAll(record.FilePath)
+	}
+	if record.IsHLS {
+		hlsDir := filepath.Join(dm.cacheDir, fmt.Sprintf("hls_%s", record.URLHash[:8]))
+		os.RemoveAll(hlsDir)
+	}
+	dm.cacheDB.db.Delete(&record)
+	return true
+}
+
+func (dm *DownloadManager) DeleteCacheBatch(ids []uint) int {
+	var records []DownloadRecord
+	dm.cacheDB.db.Where("id IN ?", ids).Find(&records)
+	deleted := 0
+	for _, r := range records {
+		if r.FilePath != "" {
+			os.RemoveAll(r.FilePath)
+		}
+		if r.IsHLS {
+			hlsDir := filepath.Join(dm.cacheDir, fmt.Sprintf("hls_%s", r.URLHash[:8]))
+			os.RemoveAll(hlsDir)
+		}
+		dm.cacheDB.db.Delete(&r)
+		deleted++
+	}
+	return deleted
+}
+
+func (dm *DownloadManager) GetCacheStats() map[string]interface{} {
+	var total int64
+	dm.cacheDB.db.Model(&DownloadRecord{}).Where("status = ?", "completed").Count(&total)
+	var totalSize int64
+	dm.cacheDB.db.Model(&DownloadRecord{}).Where("status = ?", "completed").Select("COALESCE(SUM(size), 0)").Scan(&totalSize)
+	var pending int64
+	dm.cacheDB.db.Model(&DownloadRecord{}).Where("status IN ?", []string{"pending", "downloading"}).Count(&pending)
+	return map[string]interface{}{
+		"total":   total,
+		"totalSize": totalSize,
+		"pending": pending,
+	}
 }
 
 func (dm *DownloadManager) GetDownloadProgress(id string) *DownloadProgress {
 	dm.downloadsMu.RLock()
 	defer dm.downloadsMu.RUnlock()
 	return dm.downloads[id]
+}
+
+func (dm *DownloadManager) GetDownloadQueue() []DownloadRecord {
+	var records []DownloadRecord
+	dm.cacheDB.db.Where("status IN ?", []string{"pending", "downloading"}).Order("created_at ASC").Find(&records)
+	return records
+}
+
+func (dm *DownloadManager) CancelDownload(id string) bool {
+	dm.downloadsMu.Lock()
+	if dp, ok := dm.downloads[id]; ok {
+		dp.Status = "failed"
+		dp.Error = "cancelled"
+		dm.downloadsMu.Unlock()
+	} else {
+		dm.downloadsMu.Unlock()
+	}
+	dm.cacheDB.db.Model(&DownloadRecord{}).Where("url_hash = ?", id).
+		Updates(map[string]interface{}{"status": "failed", "error": "cancelled", "progress": 0})
+	var record DownloadRecord
+	if dm.cacheDB.db.Where("url_hash = ?", id).First(&record).Error == nil {
+		if record.FilePath != "" {
+			os.RemoveAll(record.FilePath)
+		}
+	}
+	return true
+}
+
+func (dm *DownloadManager) ResumePendingDownloads(emitProgress func(string, DownloadProgress)) {
+	var records []DownloadRecord
+	dm.cacheDB.db.Where("status IN ?", []string{"pending", "downloading"}).Find(&records)
+	if len(records) == 0 {
+		return
+	}
+	log.Printf("[Cache] Resuming %d pending downloads", len(records))
+	for i := range records {
+		r := &records[i]
+		r.Status = "pending"
+		r.Progress = 0
+		dm.cacheDB.db.Save(r)
+		go dm.executeDownload(r.URL, r.Headers, r.VideoName, emitProgress)
+	}
 }
 
 func (dm *DownloadManager) DownloadVideo(rawURL string, headers map[string]string, videoName string, emitProgress func(string, DownloadProgress)) string {
@@ -173,18 +243,46 @@ func (dm *DownloadManager) DownloadVideo(rawURL string, headers map[string]strin
 		dm.downloadsMu.Unlock()
 		return id
 	}
+	dm.downloadsMu.Unlock()
+
+	headersJSON, _ := json.Marshal(headers)
+	record := &DownloadRecord{
+		URLHash:   id,
+		URL:       rawURL,
+		Headers:   string(headersJSON),
+		VideoName: videoName,
+		Status:    "pending",
+		Progress:  0,
+	}
+	dm.cacheDB.db.Create(record)
+
+	dm.downloadsMu.Lock()
 	dm.downloads[id] = &DownloadProgress{ID: id, Progress: 0, Status: "downloading"}
 	dm.downloadsMu.Unlock()
 
-	go func() {
-		if isHLSURL(rawURL) {
-			dm.downloadHLS(id, rawURL, headers, videoName, emitProgress)
-		} else {
-			dm.downloadMP4(id, rawURL, headers, videoName, emitProgress)
-		}
-	}()
+	go dm.executeDownload(rawURL, string(headersJSON), videoName, emitProgress)
 
 	return id
+}
+
+func (dm *DownloadManager) executeDownload(rawURL string, headersJSON string, videoName string, emitProgress func(string, DownloadProgress)) {
+	id := urlHash(rawURL)
+
+	var headers map[string]string
+	json.Unmarshal([]byte(headersJSON), &headers)
+
+	dm.cacheDB.db.Model(&DownloadRecord{}).Where("url_hash = ?", id).
+		Updates(map[string]interface{}{"status": "downloading", "progress": 0})
+
+	dm.downloadsMu.Lock()
+	dm.downloads[id] = &DownloadProgress{ID: id, Progress: 0, Status: "downloading"}
+	dm.downloadsMu.Unlock()
+
+	if isHLSURL(rawURL) {
+		dm.downloadHLS(id, rawURL, headers, videoName, emitProgress)
+	} else {
+		dm.downloadMP4(id, rawURL, headers, videoName, emitProgress)
+	}
 }
 
 func (dm *DownloadManager) downloadMP4(id string, rawURL string, headers map[string]string, videoName string, emitProgress func(string, DownloadProgress)) {
@@ -200,10 +298,7 @@ func (dm *DownloadManager) downloadMP4(id string, rawURL string, headers map[str
 
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
-		dm.updateProgress(id, 0, "failed", err.Error())
-		if emitProgress != nil {
-			emitProgress(id, *dm.downloads[id])
-		}
+		dm.failDownload(id, err.Error(), emitProgress)
 		return
 	}
 
@@ -216,28 +311,19 @@ func (dm *DownloadManager) downloadMP4(id string, rawURL string, headers map[str
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		dm.updateProgress(id, 0, "failed", err.Error())
-		if emitProgress != nil {
-			emitProgress(id, *dm.downloads[id])
-		}
+		dm.failDownload(id, err.Error(), emitProgress)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		dm.updateProgress(id, 0, "failed", fmt.Sprintf("HTTP %d", resp.StatusCode))
-		if emitProgress != nil {
-			emitProgress(id, *dm.downloads[id])
-		}
+		dm.failDownload(id, fmt.Sprintf("HTTP %d", resp.StatusCode), emitProgress)
 		return
 	}
 
 	out, err := os.Create(filePath)
 	if err != nil {
-		dm.updateProgress(id, 0, "failed", err.Error())
-		if emitProgress != nil {
-			emitProgress(id, *dm.downloads[id])
-		}
+		dm.failDownload(id, err.Error(), emitProgress)
 		return
 	}
 	defer out.Close()
@@ -251,10 +337,7 @@ func (dm *DownloadManager) downloadMP4(id string, rawURL string, headers map[str
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
 			if _, writeErr := out.Write(buf[:n]); writeErr != nil {
-				dm.updateProgress(id, 0, "failed", writeErr.Error())
-				if emitProgress != nil {
-					emitProgress(id, *dm.downloads[id])
-				}
+				dm.failDownload(id, writeErr.Error(), emitProgress)
 				os.Remove(filePath)
 				return
 			}
@@ -275,10 +358,7 @@ func (dm *DownloadManager) downloadMP4(id string, rawURL string, headers map[str
 			if readErr == io.EOF {
 				break
 			}
-			dm.updateProgress(id, 0, "failed", readErr.Error())
-			if emitProgress != nil {
-				emitProgress(id, *dm.downloads[id])
-			}
+			dm.failDownload(id, readErr.Error(), emitProgress)
 			os.Remove(filePath)
 			return
 		}
@@ -286,17 +366,14 @@ func (dm *DownloadManager) downloadMP4(id string, rawURL string, headers map[str
 
 	out.Close()
 
-	dm.indexMu.Lock()
-	dm.index.Videos[id] = &CachedVideo{
-		ID:        id,
-		URL:       rawURL,
-		VideoName: videoName,
-		FilePath:  filePath,
-		IsHLS:     false,
-		Size:      downloaded,
-	}
-	dm.saveIndex()
-	dm.indexMu.Unlock()
+	dm.cacheDB.db.Model(&DownloadRecord{}).Where("url_hash = ?", id).
+		Updates(map[string]interface{}{
+			"file_path": filePath,
+			"is_hls":    false,
+			"size":      downloaded,
+			"status":    "completed",
+			"progress":  100,
+		})
 
 	dm.updateProgress(id, 100, "completed", "")
 	if emitProgress != nil {
@@ -316,29 +393,20 @@ func (dm *DownloadManager) downloadHLS(id string, m3u8URL string, headers map[st
 		emitProgress(id, *dm.downloads[id])
 	}
 
-	// Download m3u8 playlist
 	m3u8Content, err := dm.downloadURL(m3u8URL, headers)
 	if err != nil {
-		dm.updateProgress(id, 0, "failed", err.Error())
-		if emitProgress != nil {
-			emitProgress(id, *dm.downloads[id])
-		}
+		dm.failDownload(id, err.Error(), emitProgress)
 		return
 	}
 
-	// Parse m3u8 to get segment URLs
 	segments := dm.parseM3U8(string(m3u8Content), m3u8URL)
 	if len(segments) == 0 {
-		dm.updateProgress(id, 0, "failed", "no segments found")
-		if emitProgress != nil {
-			emitProgress(id, *dm.downloads[id])
-		}
+		dm.failDownload(id, "no segments found", emitProgress)
 		return
 	}
 
 	log.Printf("[Cache] HLS: Found %d segments for %s", len(segments), videoName)
 
-	// Download all segments
 	var totalSize int64
 	for i, segURL := range segments {
 		segFile := filepath.Join(hlsDir, fmt.Sprintf("seg_%05d.ts", i))
@@ -361,28 +429,33 @@ func (dm *DownloadManager) downloadHLS(id string, m3u8URL string, headers map[st
 		}
 	}
 
-	// Rewrite m3u8 to local paths
 	localM3U8 := dm.rewriteM3U8ToLocal(string(m3u8Content), hlsDir)
 	localM3U8Path := filepath.Join(hlsDir, "playlist.m3u8")
 	os.WriteFile(localM3U8Path, []byte(localM3U8), 0644)
 
-	dm.indexMu.Lock()
-	dm.index.Videos[id] = &CachedVideo{
-		ID:        id,
-		URL:       m3u8URL,
-		VideoName: videoName,
-		FilePath:  localM3U8Path,
-		IsHLS:     true,
-		Size:      totalSize,
-	}
-	dm.saveIndex()
-	dm.indexMu.Unlock()
+	dm.cacheDB.db.Model(&DownloadRecord{}).Where("url_hash = ?", id).
+		Updates(map[string]interface{}{
+			"file_path": localM3U8Path,
+			"is_hls":    true,
+			"size":      totalSize,
+			"status":    "completed",
+			"progress":  100,
+		})
 
 	dm.updateProgress(id, 100, "completed", "")
 	if emitProgress != nil {
 		emitProgress(id, *dm.downloads[id])
 	}
 	log.Printf("[Cache] Downloaded HLS: %s (%d segments, %d bytes)", hlsDir, len(segments), totalSize)
+}
+
+func (dm *DownloadManager) failDownload(id string, errMsg string, emitProgress func(string, DownloadProgress)) {
+	dm.updateProgress(id, 0, "failed", errMsg)
+	if emitProgress != nil {
+		emitProgress(id, *dm.downloads[id])
+	}
+	dm.cacheDB.db.Model(&DownloadRecord{}).Where("url_hash = ?", id).
+		Updates(map[string]interface{}{"status": "failed", "error": errMsg, "progress": 0})
 }
 
 func (dm *DownloadManager) downloadURL(rawURL string, headers map[string]string) ([]byte, error) {
@@ -426,7 +499,6 @@ func (dm *DownloadManager) parseM3U8(content string, baseM3U8URL string) []strin
 			continue
 		}
 
-		// Resolve relative URLs
 		if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
 			segments = append(segments, trimmed)
 		} else if strings.HasPrefix(trimmed, "/") {
@@ -454,9 +526,7 @@ func (dm *DownloadManager) rewriteM3U8ToLocal(content string, hlsDir string) str
 			continue
 		}
 
-		// Replace segment URL with local file
 		segFile := filepath.Join(hlsDir, fmt.Sprintf("seg_%05d.ts", segIndex))
-		// Use forward slash for m3u8 compatibility
 		segFile = strings.ReplaceAll(segFile, "\\", "/")
 		result = append(result, segFile)
 		segIndex++
