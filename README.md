@@ -21,6 +21,8 @@ TV-K 是配套的 Android TV 盒子应用，用于解析视频源并推送到 PC
 **蓝奏云下载：** https://wwblv.lanzoul.com/b0139erm1e
 **密码：** 2i4s
 
+**备用下载：** https://github.com/zaaack/PCBoxWails/releases/tag/v0.0.1
+
 ## 使用教程
 
 ### 1. 启动 PCBox
