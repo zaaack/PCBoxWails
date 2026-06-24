@@ -20,6 +20,7 @@ export const PlayerView: React.FC = () => {
     setViewMode,
     saveHistory,
     historyHighlightEpisode,
+    getCachedFile,
   } = useStore();
 
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -80,6 +81,10 @@ export const PlayerView: React.FC = () => {
         },
         vhs: {
           enableLowInitialPlaylist: true,
+          // 限制前向缓冲的最大秒数，默认值可能比较小，你可以改大（例如 5 分钟 = 300 秒）
+          maxBufferLength: 300*10, 
+          // 只要低于这个秒数，就会一直疯狂下载切片
+          goalBufferLength: 300,
         },
         nativeAudioTracks: true,
         nativeVideoTracks: true,
@@ -202,7 +207,18 @@ export const PlayerView: React.FC = () => {
     const { loadPlayerContent } = useStore.getState();
     const result = await loadPlayerContent(currentVideo.sourceKey, playFlag, episode.url);
     if (result) {
-      setPlayState(episode, episodeIndex, playFlag, result.url, result.headers);
+      let finalUrl = result.url;
+      let finalHeaders = result.headers;
+
+      // Check if there's a cached version of this video
+      const cachedFile = await getCachedFile(result.url);
+      if (cachedFile) {
+        console.log('[PCBox] Using cached file:', cachedFile);
+        finalUrl = 'file://' + cachedFile.replace(/\\/g, '/');
+        finalHeaders = {};
+      }
+
+      setPlayState(episode, episodeIndex, playFlag, finalUrl, finalHeaders);
     } else {
       setPlayError('This source requires a parsing service that is not available. Please try a different source.');
     }

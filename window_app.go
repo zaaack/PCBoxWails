@@ -35,6 +35,9 @@ func (a *WindowApp) bridgeEvents() {
 	a.ipcClient.OnEvent("ws-response", func(data interface{}) {
 		runtime.EventsEmit(a.ctx, "ws-response", data)
 	})
+	a.ipcClient.OnEvent("download-progress", func(data interface{}) {
+		runtime.EventsEmit(a.ctx, "download-progress", data)
+	})
 }
 
 func (a *WindowApp) StartWsServer(port int) bool {
@@ -107,6 +110,84 @@ func (a *WindowApp) CreateProxySession(url string, headers map[string]string) st
 		return ""
 	}
 	return toString(result)
+}
+
+func (a *WindowApp) SetCacheDir(dir string) bool {
+	result, err := a.ipcClient.Call("SetCacheDir", dir)
+	if err != nil {
+		log.Printf("[Window] SetCacheDir error: %v", err)
+		return false
+	}
+	return toBool(result)
+}
+
+func (a *WindowApp) GetCacheDir() string {
+	result, err := a.ipcClient.Call("GetCacheDir", nil)
+	if err != nil {
+		log.Printf("[Window] GetCacheDir error: %v", err)
+		return ""
+	}
+	return toString(result)
+}
+
+func (a *WindowApp) SelectCacheDir() string {
+	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Select Cache Directory",
+	})
+	if err != nil || dir == "" {
+		return ""
+	}
+	a.ipcClient.Call("SetCacheDir", dir)
+	return dir
+}
+
+func (a *WindowApp) DownloadVideo(rawURL string, headers map[string]string, videoName string) string {
+	result, err := a.ipcClient.Call("DownloadVideo", map[string]interface{}{
+		"url":       rawURL,
+		"headers":   headers,
+		"videoName": videoName,
+	})
+	if err != nil {
+		log.Printf("[Window] DownloadVideo error: %v", err)
+		return ""
+	}
+	return toString(result)
+}
+
+func (a *WindowApp) GetCachedFile(rawURL string) string {
+	result, err := a.ipcClient.Call("GetCachedFile", rawURL)
+	if err != nil {
+		log.Printf("[Window] GetCachedFile error: %v", err)
+		return ""
+	}
+	return toString(result)
+}
+
+func (a *WindowApp) GetDownloadProgress(id string) map[string]interface{} {
+	result, err := a.ipcClient.Call("GetDownloadProgress", id)
+	if err != nil {
+		log.Printf("[Window] GetDownloadProgress error: %v", err)
+		return nil
+	}
+	return toMap(result)
+}
+
+func (a *WindowApp) ListCachedFiles() []map[string]interface{} {
+	result, err := a.ipcClient.Call("ListCachedFiles", nil)
+	if err != nil {
+		log.Printf("[Window] ListCachedFiles error: %v", err)
+		return []map[string]interface{}{}
+	}
+	return toSlice(result)
+}
+
+func (a *WindowApp) DeleteCachedFile(rawURL string) bool {
+	result, err := a.ipcClient.Call("DeleteCachedFile", rawURL)
+	if err != nil {
+		log.Printf("[Window] DeleteCachedFile error: %v", err)
+		return false
+	}
+	return toBool(result)
 }
 
 func toBool(v interface{}) bool {

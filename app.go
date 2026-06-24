@@ -16,10 +16,11 @@ type ClientInfo struct {
 }
 
 type App struct {
-	ctx         context.Context
-	wsServer    *WsServer
-	proxyServer *ProxyServer
-	mu          sync.Mutex
+	ctx             context.Context
+	wsServer        *WsServer
+	proxyServer     *ProxyServer
+	downloadManager *DownloadManager
+	mu              sync.Mutex
 }
 
 func NewApp() *App {
@@ -30,6 +31,7 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.proxyServer = NewProxyServer()
 	a.proxyServer.Start()
+	a.downloadManager = NewDownloadManager()
 	log.Println("[PCBox] Proxy server started")
 }
 
@@ -121,4 +123,69 @@ func (a *App) CreateProxySession(url string, headers map[string]string) string {
 		return ""
 	}
 	return a.proxyServer.CreateSession(url, headers)
+}
+
+func (a *App) SetCacheDir(dir string) {
+	if a.downloadManager == nil {
+		return
+	}
+	a.downloadManager.SetCacheDir(dir)
+}
+
+func (a *App) GetCacheDir() string {
+	if a.downloadManager == nil {
+		return ""
+	}
+	return a.downloadManager.GetCacheDir()
+}
+
+func (a *App) SelectCacheDir() string {
+	if a.ctx == nil {
+		return ""
+	}
+	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Select Cache Directory",
+	})
+	if err != nil || dir == "" {
+		return ""
+	}
+	a.downloadManager.SetCacheDir(dir)
+	return dir
+}
+
+func (a *App) DownloadVideo(rawURL string, headers map[string]string, videoName string) string {
+	if a.downloadManager == nil {
+		return ""
+	}
+	return a.downloadManager.DownloadVideo(rawURL, headers, videoName, func(id string, progress DownloadProgress) {
+		a.emitEvent("download-progress", progress)
+	})
+}
+
+func (a *App) GetCachedFile(rawURL string) string {
+	if a.downloadManager == nil {
+		return ""
+	}
+	return a.downloadManager.GetCachedFile(rawURL)
+}
+
+func (a *App) GetDownloadProgress(id string) *DownloadProgress {
+	if a.downloadManager == nil {
+		return nil
+	}
+	return a.downloadManager.GetDownloadProgress(id)
+}
+
+func (a *App) ListCachedFiles() []*CachedVideo {
+	if a.downloadManager == nil {
+		return []*CachedVideo{}
+	}
+	return a.downloadManager.ListCachedFiles()
+}
+
+func (a *App) DeleteCachedFile(rawURL string) bool {
+	if a.downloadManager == nil {
+		return false
+	}
+	return a.downloadManager.DeleteCachedFile(rawURL)
 }

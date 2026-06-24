@@ -21,6 +21,8 @@ const App: React.FC = () => {
     removeTopicCallback,
     theme,
     setTheme,
+    setDownloadProgress,
+    loadCacheDir,
   } = useStore();
 
   const [showSettings, setShowSettings] = useState(false);
@@ -29,6 +31,7 @@ const App: React.FC = () => {
     initApp();
     setupListeners();
     applyTheme();
+    loadCacheDir();
   }, []);
 
   const applyTheme = () => {
@@ -93,6 +96,10 @@ const App: React.FC = () => {
         callback(response.data);
         state.removeTopicCallback(response.topicId);
       }
+    });
+
+    api.onDownloadProgress((progress: any) => {
+      setDownloadProgress(progress.id, progress);
     });
   };
 

@@ -607,6 +607,51 @@ body {
   color: white;
 }
 
+.episode-item-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.episode-download-btn {
+  padding: 4px 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.episode-download-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.episode-download-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.episode-download-btn .spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.cache-dir-path {
+  font-family: monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
 /* Player Page */
 .player-page {
   position: relative;

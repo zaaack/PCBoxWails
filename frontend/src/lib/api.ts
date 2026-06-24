@@ -2,6 +2,22 @@
 import * as runtime from '../../wailsjs/runtime/runtime';
 ;(window as any).go.main.App ??= (window as any).go.main.WindowApp
 
+export interface CachedVideo {
+  id: string;
+  url: string;
+  videoName: string;
+  filePath: string;
+  isHLS: boolean;
+  size: number;
+}
+
+export interface DownloadProgress {
+  id: string;
+  progress: number;
+  status: string;
+  error?: string;
+}
+
 declare global {
   interface Window {
     go: {
@@ -14,6 +30,14 @@ declare global {
           GetClients(): Promise<Array<{ id: string; name: string; connectedAt: number }>>;
           SendMessage(clientId: string, code: number, data: any): Promise<boolean>;
           CreateProxySession(url: string, headers: Record<string, string>): Promise<string>;
+          SetCacheDir(dir: string): Promise<boolean>;
+          GetCacheDir(): Promise<string>;
+          SelectCacheDir(): Promise<string>;
+          DownloadVideo(url: string, headers: Record<string, string>, videoName: string): Promise<string>;
+          GetCachedFile(url: string): Promise<string>;
+          GetDownloadProgress(id: string): Promise<DownloadProgress | null>;
+          ListCachedFiles(): Promise<CachedVideo[]>;
+          DeleteCachedFile(url: string): Promise<boolean>;
         };
       };
     };
@@ -23,10 +47,12 @@ declare global {
 type ClientConnectedCallback = (client: { id: string; name: string }) => void;
 type ClientDisconnectedCallback = () => void;
 type WsResponseCallback = (response: { topicId: string; code: number; data: any }) => void;
+type DownloadProgressCallback = (progress: DownloadProgress) => void;
 
 const clientConnectedListeners: ClientConnectedCallback[] = [];
 const clientDisconnectedListeners: ClientDisconnectedCallback[] = [];
 const wsResponseListeners: WsResponseCallback[] = [];
+const downloadProgressListeners: DownloadProgressCallback[] = [];
 
 runtime.EventsOn('client-connected', (...data: any[]) => {
   const client = data[0];
@@ -42,6 +68,11 @@ runtime.EventsOn('ws-response', (...data: any[]) => {
   wsResponseListeners.forEach((cb) => cb(response));
 });
 
+runtime.EventsOn('download-progress', (...data: any[]) => {
+  const progress = data[0] as DownloadProgress;
+  downloadProgressListeners.forEach((cb) => cb(progress));
+});
+
 export const api = {
   startWsServer: (port: number) => window.go.main.App.StartWsServer(port),
   stopWsServer: () => window.go.main.App.StopWsServer(),
@@ -53,6 +84,16 @@ export const api = {
 
   createProxySession: (url: string, headers: Record<string, string>) =>
     window.go.main.App.CreateProxySession(url, headers),
+
+  setCacheDir: (dir: string) => window.go.main.App.SetCacheDir(dir),
+  getCacheDir: () => window.go.main.App.GetCacheDir(),
+  selectCacheDir: () => window.go.main.App.SelectCacheDir(),
+  downloadVideo: (url: string, headers: Record<string, string>, videoName: string) =>
+    window.go.main.App.DownloadVideo(url, headers, videoName),
+  getCachedFile: (url: string) => window.go.main.App.GetCachedFile(url),
+  getDownloadProgress: (id: string) => window.go.main.App.GetDownloadProgress(id),
+  listCachedFiles: () => window.go.main.App.ListCachedFiles(),
+  deleteCachedFile: (url: string) => window.go.main.App.DeleteCachedFile(url),
 
   onClientConnected: (callback: ClientConnectedCallback) => {
     clientConnectedListeners.push(callback);
@@ -75,6 +116,14 @@ export const api = {
     return () => {
       const idx = wsResponseListeners.indexOf(callback);
       if (idx >= 0) wsResponseListeners.splice(idx, 1);
+    };
+  },
+
+  onDownloadProgress: (callback: DownloadProgressCallback) => {
+    downloadProgressListeners.push(callback);
+    return () => {
+      const idx = downloadProgressListeners.indexOf(callback);
+      if (idx >= 0) downloadProgressListeners.splice(idx, 1);
     };
   },
 

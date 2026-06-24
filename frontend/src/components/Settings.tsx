@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
 import { api } from '../lib/api';
 
@@ -8,8 +8,26 @@ interface SettingsProps {
 }
 
 export const Settings: React.FC<SettingsProps> = ({ onStartServer, onStopServer }) => {
-  const { wsRunning, wsPort, localIp, connectedClient, theme, setTheme, menuBarVisible, setMenuBarVisible } = useStore();
+  const {
+    wsRunning, wsPort, localIp, connectedClient, theme, setTheme, menuBarVisible, setMenuBarVisible,
+    cacheDir, loadCacheDir, selectCacheDir, cachedVideos, loadCachedFiles,
+  } = useStore();
   const [port, setPort] = useState(wsPort);
+
+  useEffect(() => {
+    loadCacheDir();
+    loadCachedFiles();
+  }, []);
+
+  const formatSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const totalSize = cachedVideos.reduce((sum, v) => sum + (v.size || 0), 0);
 
   return (
     <div className="settings">
@@ -105,6 +123,23 @@ export const Settings: React.FC<SettingsProps> = ({ onStartServer, onStopServer 
           <button className="btn btn-secondary" onClick={() => api.openDevTools()}>
             Open DevTools
           </button>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3>Video Cache</h3>
+        <div className="settings-row">
+          <label>Cache Directory:</label>
+          <span className="cache-dir-path">{cacheDir || 'Not set'}</span>
+        </div>
+        <div className="settings-actions">
+          <button className="btn btn-primary" onClick={() => selectCacheDir()}>
+            Select Directory
+          </button>
+        </div>
+        <div className="settings-row">
+          <label>Cached Videos:</label>
+          <span>{cachedVideos.length} ({formatSize(totalSize)})</span>
         </div>
       </div>
     </div>

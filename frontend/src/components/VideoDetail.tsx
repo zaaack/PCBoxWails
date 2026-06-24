@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { TvBoxVideo } from '../lib/converter';
+import { FiDownload, FiLoader } from 'react-icons/fi';
 
 export const VideoDetail: React.FC = () => {
   const {
@@ -12,9 +13,11 @@ export const VideoDetail: React.FC = () => {
     currentSource,
     loading,
     historyHighlightEpisode,
+    downloadVideo,
   } = useStore();
 
   const [detailVideo, setDetailVideo] = useState<TvBoxVideo | null>(null);
+  const [downloadingEpisodes, setDownloadingEpisodes] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (currentVideo && currentSource) {
@@ -53,6 +56,31 @@ export const VideoDetail: React.FC = () => {
     const result = await loadPlayerContent(source.key, playFlag, episode.url);
     if (result) {
       setPlayState(episode, episodeIndex, playFlag, result.url, result.headers);
+    }
+  };
+
+  const handleDownloadEpisode = async (episode: any, playFlag: string) => {
+    const source = currentSource || { key: video.sourceKey };
+    if (!source) return;
+
+    const epKey = `${playFlag}:${episode.url}`;
+    setDownloadingEpisodes((prev) => new Set(prev).add(epKey));
+
+    try {
+      const { loadPlayerContent: loadPlayer } = useStore.getState();
+      const result = await loadPlayer(source.key, playFlag, episode.url);
+      if (result && result.url) {
+        const videoName = `${video.name} - ${episode.name}`;
+        await downloadVideo(result.url, result.headers || {}, videoName);
+      }
+    } catch (e) {
+      console.warn('[PCBox] Download failed:', e);
+    } finally {
+      setDownloadingEpisodes((prev) => {
+        const next = new Set(prev);
+        next.delete(epKey);
+        return next;
+      });
     }
   };
 
@@ -111,14 +139,29 @@ export const VideoDetail: React.FC = () => {
                         historyHighlightEpisode &&
                         historyHighlightEpisode.playFlag === flagInfo.flag &&
                         historyHighlightEpisode.episodeUrl === episode.url;
+                      const epKey = `${flagInfo.flag}:${episode.url}`;
+                      const isDownloading = downloadingEpisodes.has(epKey);
                       return (
-                        <button
-                          key={epIndex}
-                          className={`episode-btn ${isHighlighted ? 'active' : ''}`}
-                          onClick={() => handlePlayEpisode(episode, epIndex, flagInfo.flag)}
-                        >
-                          {episode.name}
-                        </button>
+                        <div key={epIndex} className="episode-item-wrapper">
+                          <button
+                            className={`episode-btn ${isHighlighted ? 'active' : ''}`}
+                            onClick={() => handlePlayEpisode(episode, epIndex, flagInfo.flag)}
+                          >
+                            {episode.name}
+                          </button>
+                          <button
+                            className="episode-download-btn"
+                            onClick={() => handleDownloadEpisode(episode, flagInfo.flag)}
+                            disabled={isDownloading}
+                            title="Download"
+                          >
+                            {isDownloading ? (
+                              <FiLoader className="spin" size={12} />
+                            ) : (
+                              <FiDownload size={12} />
+                            )}
+                          </button>
+                        </div>
                       );
                     })}
                   </div>

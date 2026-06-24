@@ -12,16 +12,18 @@ import (
 )
 
 type ServerApp struct {
-	wsServer    *server.WsServer
-	proxyServer *server.ProxyServer
-	ipcServer   *ipc.IPCServer
-	windowCmd   *exec.Cmd
-	mu          sync.Mutex
+	wsServer        *server.WsServer
+	proxyServer     *server.ProxyServer
+	downloadManager *DownloadManager
+	ipcServer       *ipc.IPCServer
+	windowCmd       *exec.Cmd
+	mu              sync.Mutex
 }
 
 func (a *ServerApp) startup() {
 	a.proxyServer = server.NewProxyServer()
 	a.proxyServer.Start()
+	a.downloadManager = NewDownloadManager()
 	a.wsServer = server.NewWsServer(a.emitEvent)
 	a.wsServer.Start(9898)
 	log.Println("[PCBox] WebSocket server started on port 9898")
@@ -111,6 +113,57 @@ func (a *ServerApp) CreateProxySession(url string, headers map[string]string) st
 	return a.proxyServer.CreateSession(url, headers)
 }
 
+func (a *ServerApp) SetCacheDir(dir string) {
+	if a.downloadManager == nil {
+		return
+	}
+	a.downloadManager.SetCacheDir(dir)
+}
+
+func (a *ServerApp) GetCacheDir() string {
+	if a.downloadManager == nil {
+		return ""
+	}
+	return a.downloadManager.GetCacheDir()
+}
+
+func (a *ServerApp) DownloadVideo(rawURL string, headers map[string]string, videoName string) string {
+	if a.downloadManager == nil {
+		return ""
+	}
+	return a.downloadManager.DownloadVideo(rawURL, headers, videoName, func(id string, progress DownloadProgress) {
+		a.emitEvent("download-progress", progress)
+	})
+}
+
+func (a *ServerApp) GetCachedFile(rawURL string) string {
+	if a.downloadManager == nil {
+		return ""
+	}
+	return a.downloadManager.GetCachedFile(rawURL)
+}
+
+func (a *ServerApp) GetDownloadProgress(id string) *DownloadProgress {
+	if a.downloadManager == nil {
+		return nil
+	}
+	return a.downloadManager.GetDownloadProgress(id)
+}
+
+func (a *ServerApp) ListCachedFiles() []*CachedVideo {
+	if a.downloadManager == nil {
+		return []*CachedVideo{}
+	}
+	return a.downloadManager.ListCachedFiles()
+}
+
+func (a *ServerApp) DeleteCachedFile(rawURL string) bool {
+	if a.downloadManager == nil {
+		return false
+	}
+	return a.downloadManager.DeleteCachedFile(rawURL)
+}
+
 func registerIPCMethods(srv *ServerApp, ipcSrv *ipc.IPCServer) {
 	ipcSrv.RegisterMethod("StartWsServer", func(args json.RawMessage) (interface{}, error) {
 		var port int
@@ -159,5 +212,58 @@ func registerIPCMethods(srv *ServerApp, ipcSrv *ipc.IPCServer) {
 			return nil, err
 		}
 		return srv.CreateProxySession(p.URL, p.Headers), nil
+	})
+
+	ipcSrv.RegisterMethod("SetCacheDir", func(args json.RawMessage) (interface{}, error) {
+		var dir string
+		if err := json.Unmarshal(args, &dir); err != nil {
+			return nil, err
+		}
+		srv.SetCacheDir(dir)
+		return true, nil
+	})
+
+	ipcSrv.RegisterMethod("GetCacheDir", func(args json.RawMessage) (interface{}, error) {
+		return srv.GetCacheDir(), nil
+	})
+
+	ipcSrv.RegisterMethod("DownloadVideo", func(args json.RawMessage) (interface{}, error) {
+		var p struct {
+			URL       string            `json:"url"`
+			Headers   map[string]string `json:"headers"`
+			VideoName string            `json:"videoName"`
+		}
+		if err := json.Unmarshal(args, &p); err != nil {
+			return nil, err
+		}
+		return srv.DownloadVideo(p.URL, p.Headers, p.VideoName), nil
+	})
+
+	ipcSrv.RegisterMethod("GetCachedFile", func(args json.RawMessage) (interface{}, error) {
+		var rawURL string
+		if err := json.Unmarshal(args, &rawURL); err != nil {
+			return nil, err
+		}
+		return srv.GetCachedFile(rawURL), nil
+	})
+
+	ipcSrv.RegisterMethod("GetDownloadProgress", func(args json.RawMessage) (interface{}, error) {
+		var id string
+		if err := json.Unmarshal(args, &id); err != nil {
+			return nil, err
+		}
+		return srv.GetDownloadProgress(id), nil
+	})
+
+	ipcSrv.RegisterMethod("ListCachedFiles", func(args json.RawMessage) (interface{}, error) {
+		return srv.ListCachedFiles(), nil
+	})
+
+	ipcSrv.RegisterMethod("DeleteCachedFile", func(args json.RawMessage) (interface{}, error) {
+		var rawURL string
+		if err := json.Unmarshal(args, &rawURL); err != nil {
+			return nil, err
+		}
+		return srv.DeleteCachedFile(rawURL), nil
 	})
 }

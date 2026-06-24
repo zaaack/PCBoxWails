@@ -16,7 +16,7 @@ import {
   TvBoxMovieSort,
   TvBoxVideo,
 } from '../lib/converter';
-import { api } from '../lib/api';
+import { api, CachedVideo, DownloadProgress } from '../lib/api';
 
 const MessageCodes = {
   REGISTER: 100,
@@ -201,6 +201,20 @@ interface AppState {
   loading: boolean;
   setLoading: (loading: boolean) => void;
 
+  cacheDir: string;
+  setCacheDir: (dir: string) => void;
+  loadCacheDir: () => void;
+  selectCacheDir: () => Promise<string>;
+
+  downloadProgress: Map<string, DownloadProgress>;
+  setDownloadProgress: (id: string, progress: DownloadProgress) => void;
+
+  cachedVideos: CachedVideo[];
+  loadCachedFiles: () => void;
+  downloadVideo: (url: string, headers: Record<string, string>, videoName: string) => Promise<string>;
+  getCachedFile: (url: string) => Promise<string>;
+  deleteCachedFile: (url: string) => Promise<boolean>;
+
   topicCallbacks: Map<string, (data: any) => void>;
   addTopicCallback: (topicId: string, callback: (data: any) => void) => void;
   removeTopicCallback: (topicId: string) => void;
@@ -309,6 +323,83 @@ export const useStore = create<AppState>((set, get) => ({
 
   loading: false,
   setLoading: (loading) => set({ loading }),
+
+  cacheDir: '',
+  setCacheDir: (dir) => set({ cacheDir: dir }),
+  loadCacheDir: async () => {
+    try {
+      const dir = await api.getCacheDir();
+      set({ cacheDir: dir });
+    } catch (e) {
+      console.warn('[PCBox] Failed to load cache dir:', e);
+    }
+  },
+  selectCacheDir: async () => {
+    try {
+      const dir = await api.selectCacheDir();
+      if (dir) {
+        set({ cacheDir: dir });
+      }
+      return dir;
+    } catch (e) {
+      console.warn('[PCBox] Failed to select cache dir:', e);
+      return '';
+    }
+  },
+
+  downloadProgress: new Map(),
+  setDownloadProgress: (id, progress) => {
+    const state = get();
+    const newMap = new Map(state.downloadProgress);
+    if (progress.status === 'completed' || progress.status === 'failed') {
+      newMap.delete(id);
+      if (progress.status === 'completed') {
+        setTimeout(() => {
+          get().loadCachedFiles();
+        }, 100);
+      }
+    } else {
+      newMap.set(id, progress);
+    }
+    set({ downloadProgress: newMap });
+  },
+
+  cachedVideos: [],
+  loadCachedFiles: async () => {
+    try {
+      const files = await api.listCachedFiles();
+      set({ cachedVideos: files });
+    } catch (e) {
+      console.warn('[PCBox] Failed to load cached files:', e);
+    }
+  },
+  downloadVideo: async (url, headers, videoName) => {
+    try {
+      const id = await api.downloadVideo(url, headers, videoName);
+      return id;
+    } catch (e) {
+      console.warn('[PCBox] Failed to start download:', e);
+      return '';
+    }
+  },
+  getCachedFile: async (url) => {
+    try {
+      return await api.getCachedFile(url);
+    } catch (e) {
+      return '';
+    }
+  },
+  deleteCachedFile: async (url) => {
+    try {
+      const result = await api.deleteCachedFile(url);
+      if (result) {
+        await get().loadCachedFiles();
+      }
+      return result;
+    } catch (e) {
+      return false;
+    }
+  },
 
   topicCallbacks: new Map(),
   addTopicCallback: (topicId, callback) => {
