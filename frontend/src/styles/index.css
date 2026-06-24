@@ -757,6 +757,12 @@ body {
   border-color: rgba(255, 255, 255, 0.3);
 }
 
+.overlay-btn.active {
+  background: rgba(79, 140, 255, 0.6);
+  border-color: rgba(79, 140, 255, 0.8);
+  color: white;
+}
+
 .overlay-title {
   flex: 1;
   color: white;

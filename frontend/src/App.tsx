@@ -43,9 +43,27 @@ const App: React.FC = () => {
     const ip = await api.getLocalIp();
     if (ip) setLocalIp(ip);
 
+    try {
+      console.log('[PCBox] Querying server status...');
+      const status = await api.getWsServerStatus();
+      console.log('[PCBox] Server status:', status);
+      if (status && status.running) {
+        setWsStatus(true, status.port);
+        return;
+      }
+    } catch (e) {
+      console.warn('[PCBox] getWsServerStatus failed:', e);
+    }
+
     const wsPort = 9898;
-    const success = await api.startWsServer(wsPort);
-    if (success) setWsStatus(true, wsPort);
+    try {
+      console.log('[PCBox] Starting WS server on port', wsPort);
+      const success = await api.startWsServer(wsPort);
+      console.log('[PCBox] StartWsServer result:', success);
+      if (success) setWsStatus(true, wsPort);
+    } catch (e) {
+      console.warn('[PCBox] startWsServer failed:', e);
+    }
   };
 
   const setupListeners = () => {
@@ -91,7 +109,21 @@ const App: React.FC = () => {
   };
 
   const handleStartServer = async (port: number) => {
+    try {
+      console.log('[PCBox] handleStartServer: checking status...');
+      const status = await api.getWsServerStatus();
+      console.log('[PCBox] handleStartServer: current status:', status);
+      if (status && status.running) {
+        setWsStatus(true, status.port);
+        return;
+      }
+    } catch (e) {
+      console.warn('[PCBox] handleStartServer: status check failed:', e);
+    }
+
+    console.log('[PCBox] handleStartServer: calling startWsServer...');
     const success = await api.startWsServer(port);
+    console.log('[PCBox] handleStartServer: result:', success);
     if (success) setWsStatus(true, port);
   };
 

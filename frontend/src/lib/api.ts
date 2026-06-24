@@ -1,5 +1,6 @@
 // Wails API wrapper — drop-in replacement for window.electronAPI
 import * as runtime from '../../wailsjs/runtime/runtime';
+;(window as any).go.main.App ??= (window as any).go.main.WindowApp
 
 declare global {
   interface Window {
@@ -111,6 +112,10 @@ export const api = {
   isMenuBarVisible: () => Promise.resolve(true),
 
   removeAllListeners: (_channel: string) => {},
+
+  openDevTools: () => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F12', code: 'F12' }));
+  },
 };
 
 export { runtime };

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../store';
+import { api } from '../lib/api';
 
 interface SettingsProps {
   onStartServer: (port: number) => void;
@@ -97,6 +98,15 @@ export const Settings: React.FC<SettingsProps> = ({ onStartServer, onStopServer 
           </div>
         </div>
       )}
+
+      <div className="settings-section">
+        <h3>Developer</h3>
+        <div className="settings-actions">
+          <button className="btn btn-secondary" onClick={() => api.openDevTools()}>
+            Open DevTools
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

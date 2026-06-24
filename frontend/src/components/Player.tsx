@@ -5,7 +5,7 @@ import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import 'videojs-hotkeys';
 import Player from 'video.js/dist/types/player';
-import { FiArrowLeft, FiList, FiMaximize, FiMonitor } from 'react-icons/fi';
+import { FiArrowLeft, FiList, FiMaximize, FiMonitor, FiMapPin } from 'react-icons/fi';
 import { MdOutlinePlayDisabled } from 'react-icons/md';
 
 export const PlayerView: React.FC = () => {
@@ -26,6 +26,7 @@ export const PlayerView: React.FC = () => {
   const playerRef = useRef<Player | null>(null);
   const [playError, setPlayError] = useState('');
   const [isSystemFullscreen, setIsSystemFullscreen] = useState(false);
+  const [isOnTop, setIsOnTop] = useState(false);
   const [showEpisodePanel, setShowEpisodePanel] = useState(false);
   const [showOverlay, setShowOverlay] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
@@ -144,6 +145,7 @@ export const PlayerView: React.FC = () => {
 
   useEffect(() => {
     progressSaveRef.current = setInterval(() => {
+        console.log('save history', playerRef.current, currentVideo , currentEpisode, )
       if (playerRef.current && currentVideo && currentEpisode) {
         saveHistory({
           id: currentVideo.id,
@@ -199,6 +201,10 @@ export const PlayerView: React.FC = () => {
 
   const handleBack = async () => {
     await exitAllFullscreen();
+    if (isOnTop) {
+      setIsOnTop(false);
+      api.setAlwaysOnTop(false);
+    }
     if (currentVideo) {
       setViewMode('detail');
     } else {
@@ -228,6 +234,12 @@ export const PlayerView: React.FC = () => {
       await api.toggleFullscreen(false);
       setIsSystemFullscreen(false);
     }
+  };
+
+  const toggleAlwaysOnTop = async () => {
+    const next = !isOnTop;
+    setIsOnTop(next);
+    api.setAlwaysOnTop(next);
   };
 
   const exitAllFullscreen = async () => {
@@ -261,6 +273,10 @@ export const PlayerView: React.FC = () => {
         toggleWindowFullscreen();
       } else if (e.key === 'e' || e.key === 'E') {
         setShowEpisodePanel((p) => !p);
+      } else if (e.key === 't' || e.key === 'T') {
+        if (!e.ctrlKey && !e.altKey) {
+          toggleAlwaysOnTop();
+        }
       }
     };
     document.addEventListener('keydown', handleKeyDown);
@@ -325,6 +341,13 @@ export const PlayerView: React.FC = () => {
             title="Episodes (E)"
           >
             <FiList size={18} />
+          </button>
+          <button
+            className={`overlay-btn ${isOnTop ? 'active' : ''}`}
+            onClick={toggleAlwaysOnTop}
+            title="Always on Top (T)"
+          >
+            <FiMapPin size={18} />
           </button>
           <button
             className="overlay-btn"

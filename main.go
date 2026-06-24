@@ -128,12 +128,16 @@ func runServer(ipcPort int) {
 	menu.AddSeparator()
 	menu.Add("退出", func() {
 		tray.Remove()
+		if srv.windowCmd != nil && srv.windowCmd.Process != nil {
+			srv.windowCmd.Process.Kill()
+		}
 		os.Exit(0)
 	})
 	tray.SetMenu(menu)
 	tray.OnDoubleClick(func() { showWindow(srv) })
 
 	tray.Show()
+	go showWindow(srv)
 	if err := tray.Run(); err != nil {
 		log.Fatalf("[Tray] Run error: %v", err)
 	}

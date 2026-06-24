@@ -636,18 +636,20 @@ export const useStore = create<AppState>((set, get) => ({
   saveHistory: (historyItem) => {
     const state = get();
     if (!state.connectedClient) return;
+      console.log('saveHistory.historyItem', historyItem)
 
     const catVodHistory = {
-      key: `${historyItem.sourceKey}@@@${historyItem.id}`,
-      vodPic: historyItem.pic,
+      sourceKey: historyItem.sourceKey,
+      vodId: historyItem.id,
       vodName: historyItem.name,
-      vodFlag: historyItem.playFlag,
-      vodRemarks: historyItem.episodeFlag,
+      vodPic: historyItem.pic,
+      playFlag: historyItem.playFlag,
+      episodeFlag: historyItem.episodeFlag,
+      episodeIndex: historyItem.episodeIndex,
       episodeUrl: historyItem.episodeUrl,
       revSort: historyItem.reverseSort,
       position: historyItem.progress,
       duration: historyItem.duration,
-      createTime: Date.now(),
     };
 
     api.sendMessage(

@@ -1,0 +1,13 @@
+@echo off
+echo Building and starting PCBox in server mode...
+
+echo [1/3] Building frontend...
+cd frontend
+call pnpm run build
+cd ..
+
+echo [2/3] Building binary...
+wails build -o build\bin\pcbox.exe
+
+echo [3/3] Starting server mode...
+build\bin\pcbox.exe --mode=server

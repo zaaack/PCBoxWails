@@ -1,0 +1,6 @@
+2026/06/24 15:45:34 [Proxy] Server started on port 12198
+2026/06/24 15:45:34 WebSocket server started on port 9898
+2026/06/24 15:45:34 [PCBox] WebSocket server started on port 9898
+2026/06/24 15:45:34 [IPC] Server starting on 127.0.0.1:9899
+2026/06/24 15:45:37 [IPC] New client connected
+2026/06/24 15:45:37 [IPC] GetWsServerStatus: map[port:9898 running:true]
