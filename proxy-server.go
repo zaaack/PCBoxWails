@@ -116,7 +116,25 @@ func (p *ProxyServer) handleLocal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	http.ServeFile(w, r, filePath)
+
+	// Serve local file manually to avoid http.ServeFile path issues on Windows
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+	ext := filePath[strings.LastIndex(filePath, "."):]
+	contentType := "application/octet-stream"
+	switch ext {
+	case ".ts":
+		contentType = "video/mp2t"
+	case ".m3u8":
+		contentType = "application/x-mpegURL"
+	case ".mp4":
+		contentType = "video/mp4"
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Write(data)
 }
 
 func (p *ProxyServer) CreateSession(targetURL string, headers map[string]string) string {
