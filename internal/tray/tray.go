@@ -27,7 +27,7 @@ type menuItem struct {
 }
 
 func New() *Tray {
-	return &Tray{}
+	return &Tray{impl: newPlatformTray()}
 }
 
 func (t *Tray) SetIcon(data []byte) {
@@ -55,7 +55,6 @@ func (t *Tray) Remove() {
 }
 
 func (t *Tray) Run() error {
-	t.impl = newPlatformTray()
 	return t.impl.run(t)
 }
 
