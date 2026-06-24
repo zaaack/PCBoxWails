@@ -63,7 +63,7 @@ export const PlayerView: React.FC = () => {
       responsive: false,
       playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
       controlBar: {
-        volumePanel: { inline: true },
+        volumePanel: { inline: false },
         pictureInPictureToggle: true,
         fullscreenToggle: false,
       },

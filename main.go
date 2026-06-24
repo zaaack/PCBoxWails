@@ -97,11 +97,11 @@ func runStandalone() {
 }
 
 func runServer(ipcPort int) {
-	logFile, err := os.Create("pcbox-server.log")
-	if err == nil {
-		log.SetOutput(logFile)
-		defer logFile.Close()
-	}
+// 	logFile, err := os.Create("pcbox-server.log")
+// 	if err == nil {
+// 		log.SetOutput(logFile)
+// 		defer logFile.Close()
+// 	}
 
 	srv := &ServerApp{}
 	srv.startup()
