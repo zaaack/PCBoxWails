@@ -110,6 +110,7 @@ export const CacheManager: React.FC = () => {
 
   const handleDeleteSelected = async () => {
     if (selected.size === 0 || deleting) return;
+    if (!window.confirm(`Delete ${selected.size} selected file(s)?`)) return;
     setDeleting(true);
     const count = await deleteCacheBatch(Array.from(selected));
     setSelected(new Set());
@@ -121,6 +122,7 @@ export const CacheManager: React.FC = () => {
 
   const handleDeleteSingle = async (id: number) => {
     if (deleting) return;
+    if (!window.confirm('Delete this cached file?')) return;
     setDeleting(true);
     await deleteCacheById(id);
     setSelected((prev) => {
