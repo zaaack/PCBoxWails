@@ -140,6 +140,7 @@ Go 后端 (main.go, app.go, ws-server.go, proxy-server.go)
 
 - [FreeBox](https://github.com/kknifer7/FreeBox) - 感谢 kknifer7 提供的 FreeBox 项目
 - [TV-K](https://github.com/kknifer7/TV-K) - 感谢 kknifer7 提供的 TV-K 项目
+- [MiMo-Code](https://github.com/XiaomiMiMo/MiMo-Code) - 感谢 XiaomiMiMo 提供的免费 MiMo v2.5 模型
 
 ## 技术栈
 
