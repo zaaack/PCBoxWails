@@ -344,6 +344,7 @@ export const useStore = create<AppState>((set, get) => ({
       currentEpisodeIndex: 0,
       currentPlayFlag: 'cache',
       previousView: 'cache',
+      showCacheManager: false,
       viewMode: 'player',
     });
   },

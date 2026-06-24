@@ -88,7 +88,8 @@ func runStandalone() {
 		},
 		Debug: options.Debug{
 			OpenInspectorOnStartup: shouldOpenDevTools(),
-		},
+		},// --- 核心修改：允许在生产环境中启用默认的右键上下文菜单 ---
+    EnableDefaultContextMenu: true,
 	})
 
 	if err != nil {
@@ -179,7 +180,8 @@ func runWindow(ipcPort int) {
 		},
 		Debug: options.Debug{
 			OpenInspectorOnStartup: shouldOpenDevTools(),
-		},
+		},// --- 核心修改：允许在生产环境中启用默认的右键上下文菜单 ---
+    EnableDefaultContextMenu: true,
 	})
 
 	if err != nil {
@@ -202,6 +204,8 @@ func showWindow(srv *ServerApp) {
 	srv.windowCmd = exec.Command(exe, "--mode=window", "--ipc-port=9899")
 	srv.windowCmd.Stdout = os.Stdout
 	srv.windowCmd.Stderr = os.Stderr
+	// --- 修复核心：让子进程带有 PCBOX_DEVTOOLS 环境变量 ---
+	srv.windowCmd.Env = append(os.Environ())
 
 	if err := srv.windowCmd.Start(); err != nil {
 		log.Printf("[Server] Failed to start window: %v", err)
