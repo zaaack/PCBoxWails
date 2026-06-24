@@ -33,10 +33,20 @@ export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, on
   }, []);
 
   const isEpisodeCached = (episodeUrl: string): boolean => {
-    return cachedVideos.some((v) => v.url && v.videoName.includes(episodeUrl));
+    return cachedVideos.some((v) => v.url === episodeUrl);
+  };
+
+  const isEpisodeBusy = (epKey: string): boolean => {
+    const task = cacheTasks.find((t) => t.epKey === epKey);
+    if (task && (task.status === 'pending' || task.status === 'resolving' || task.status === 'downloading')) {
+      return true;
+    }
+    return false;
   };
 
   const toggleEpisode = (epKey: string) => {
+    const url = epKey.split(/:(.*)/)[1];
+    if (isEpisodeCached(url) || isEpisodeBusy(epKey)) return;
     setSelectedEpisodes((prev) => {
       const next = new Set(prev);
       if (next.has(epKey)) {
@@ -50,9 +60,11 @@ export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, on
 
   const toggleAll = () => {
     const allKeys = playFlags.flatMap((f) =>
-      f.beanList.map((ep) => `${f.flag}:${ep.url}`)
+      f.beanList
+        .filter((ep) => !isEpisodeCached(ep.url) && !isEpisodeBusy(`${f.flag}:${ep.url}`))
+        .map((ep) => `${f.flag}:${ep.url}`)
     );
-    const allSelected = allKeys.every((k) => selectedEpisodes.has(k));
+    const allSelected = allKeys.length > 0 && allKeys.every((k) => selectedEpisodes.has(k));
     setSelectedEpisodes(allSelected ? new Set() : new Set(allKeys));
   };
 
@@ -169,9 +181,11 @@ export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, on
         <div className="cache-panel-subheader">
           <span className="cache-video-name">{videoName}</span>
           <button className="btn btn-sm btn-secondary" onClick={toggleAll}>
-            {playFlags.flatMap((f) => f.beanList).every((ep) =>
-              selectedEpisodes.has(`${playFlags[0]?.flag}:${ep.url}`)
-            )
+            {playFlags.flatMap((f) => f.beanList)
+              .filter((ep) => !isEpisodeCached(ep.url) && !isEpisodeBusy(`${playFlags[0]?.flag}:${ep.url}`))
+              .every((ep) =>
+                selectedEpisodes.has(`${playFlags[0]?.flag}:${ep.url}`)
+              )
               ? 'Deselect All'
               : 'Select All'}
           </button>
@@ -193,9 +207,9 @@ export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, on
                   return (
                     <button
                       key={epIndex}
-                      className={`cache-ep-btn ${isSelected ? 'selected' : ''} ${task?.status === 'completed' ? 'completed' : ''} ${task?.status === 'failed' ? 'failed' : ''} ${cached && !task ? 'cached' : ''}`}
+                      className={`cache-ep-btn ${isSelected ? 'selected' : ''} ${task?.status === 'completed' ? 'completed' : ''} ${task?.status === 'failed' ? 'failed' : ''} ${cached && !task ? 'cached' : ''} ${isEpisodeBusy(epKey) ? 'busy' : ''}`}
                       onClick={() => !isCacheDownloading && toggleEpisode(epKey)}
-                      disabled={isCacheDownloading}
+                      disabled={isCacheDownloading || cached || isEpisodeBusy(epKey)}
                     >
                       <span className="cache-ep-name">{episode.name}</span>
                       {task?.status === 'completed' && (

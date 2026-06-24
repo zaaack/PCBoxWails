@@ -110,8 +110,11 @@ func (dm *DownloadManager) ListCachedFiles() []*CachedVideo {
 	return result
 }
 
-func (dm *DownloadManager) ListCachedFilesPaged(page, pageSize int, keyword string) ([]DownloadRecord, int64) {
-	query := dm.cacheDB.db.Where("status = ?", "completed")
+func (dm *DownloadManager) ListCachedFilesPaged(page, pageSize int, keyword string, status string) ([]DownloadRecord, int64) {
+	query := dm.cacheDB.db
+	if status != "" && status != "all" {
+		query = query.Where("status = ?", status)
+	}
 	if keyword != "" {
 		query = query.Where("video_name LIKE ?", "%"+keyword+"%")
 	}

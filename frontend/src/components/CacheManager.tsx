@@ -9,8 +9,10 @@ import {
   FiHardDrive,
   FiClock,
   FiLoader,
+  FiCheck,
+  FiAlertCircle,
+  FiList,
 } from 'react-icons/fi';
-import { DownloadRecord } from '../lib/api';
 
 const formatSize = (bytes: number): string => {
   if (bytes === 0) return '0 B';
@@ -25,19 +27,31 @@ const formatDate = (dateStr: string): string => {
   return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+const STATUS_TABS = [
+  { key: 'all', label: 'All', icon: FiList },
+  { key: 'completed', label: 'Cached', icon: FiCheck },
+  { key: 'downloading', label: 'Downloading', icon: FiLoader },
+  { key: 'pending', label: 'Pending', icon: FiClock },
+  { key: 'failed', label: 'Failed', icon: FiAlertCircle },
+];
+
 export const CacheManager: React.FC = () => {
   const {
     cachedFilesPaged,
     cachedFilesTotal,
     cachePage,
     cacheKeyword,
+    cacheStatusFilter,
     cacheStats,
+    downloadProgress,
     loadCachedFilesPaged,
     loadCacheStats,
     setCachePage,
     setCacheKeyword,
+    setCacheStatusFilter,
     deleteCacheById,
     deleteCacheBatch,
+    cancelDownload,
     addToast,
   } = useStore();
 
@@ -53,9 +67,18 @@ export const CacheManager: React.FC = () => {
     loadCacheStats();
   }, []);
 
+  const handleTabChange = (status: string) => {
+    setSelected(new Set());
+    setCacheStatusFilter(status);
+    setCachePage(1);
+    setTimeout(() => loadCachedFilesPaged(1), 0);
+  };
+
   const handleSearch = () => {
     setSelected(new Set());
-    loadCachedFilesPaged(1, searchInput);
+    setCacheKeyword(searchInput);
+    setCachePage(1);
+    setTimeout(() => loadCachedFilesPaged(1, searchInput), 0);
   };
 
   const handlePageChange = (page: number) => {
@@ -107,16 +130,30 @@ export const CacheManager: React.FC = () => {
     addToast({ message: 'File deleted', type: 'success' });
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
+  const handleCancelSingle = async (urlHash: string) => {
+    await cancelDownload(urlHash);
+    loadCachedFilesPaged(cachePage);
+    loadCacheStats();
+    addToast({ message: 'Download cancelled', type: 'info' });
+  };
+
+  const getStatusDisplay = (record: any) => {
+    switch (record.status) {
       case 'completed':
-        return <span className="cache-status completed">✓</span>;
-      case 'downloading':
-        return <FiLoader size={12} className="spin" />;
+        return <span className="cache-badge badge-completed"><FiCheck size={10} /> Cached</span>;
+      case 'downloading': {
+        const prog = downloadProgress.get(record.urlHash);
+        const pct = prog ? Math.round(prog.progress) : Math.round(record.progress || 0);
+        return (
+          <span className="cache-badge badge-downloading">
+            <FiLoader size={10} className="spin" /> {pct}%
+          </span>
+        );
+      }
       case 'pending':
-        return <FiClock size={12} />;
+        return <span className="cache-badge badge-pending"><FiClock size={10} /> Queued</span>;
       case 'failed':
-        return <FiX size={12} className="cache-status failed" />;
+        return <span className="cache-badge badge-failed"><FiX size={10} /> Failed</span>;
       default:
         return null;
     }
@@ -136,6 +173,19 @@ export const CacheManager: React.FC = () => {
             </span>
           )}
         </div>
+      </div>
+
+      <div className="cache-status-tabs">
+        {STATUS_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            className={`cache-tab ${cacheStatusFilter === tab.key ? 'active' : ''}`}
+            onClick={() => handleTabChange(tab.key)}
+          >
+            <tab.icon size={13} className={tab.key === 'downloading' ? 'spin' : ''} />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       <div className="cache-manager-toolbar">
@@ -179,6 +229,7 @@ export const CacheManager: React.FC = () => {
               <th>Name</th>
               <th>Size</th>
               <th>Type</th>
+              <th>Status</th>
               <th>Date</th>
               <th className="cache-th-actions"></th>
             </tr>
@@ -186,8 +237,8 @@ export const CacheManager: React.FC = () => {
           <tbody>
             {cachedFilesPaged.length === 0 ? (
               <tr>
-                <td colSpan={6} className="cache-empty">
-                  No cached files
+                <td colSpan={7} className="cache-empty">
+                  No records found
                 </td>
               </tr>
             ) : (
@@ -204,20 +255,30 @@ export const CacheManager: React.FC = () => {
                     <span className="cache-name-text" title={record.videoName}>
                       {record.videoName}
                     </span>
-                    <span className="cache-status-icon">{getStatusIcon(record.status)}</span>
                   </td>
                   <td className="cache-td-size">{formatSize(record.size)}</td>
                   <td className="cache-td-type">{record.isHLS ? 'HLS' : 'MP4'}</td>
+                  <td className="cache-td-status">{getStatusDisplay(record)}</td>
                   <td className="cache-td-date">{formatDate(record.updatedAt)}</td>
                   <td className="cache-td-actions">
-                    <button
-                      className="btn btn-xs btn-icon btn-danger-icon"
-                      onClick={() => handleDeleteSingle(record.id)}
-                      disabled={deleting}
-                      title="Delete"
-                    >
-                      <FiTrash2 size={12} />
-                    </button>
+                    {(record.status === 'downloading' || record.status === 'pending') ? (
+                      <button
+                        className="btn btn-xs btn-icon btn-cancel-icon"
+                        onClick={() => handleCancelSingle(record.urlHash)}
+                        title="Cancel"
+                      >
+                        <FiX size={12} />
+                      </button>
+                    ) : (
+                      <button
+                        className="btn btn-xs btn-icon btn-danger-icon"
+                        onClick={() => handleDeleteSingle(record.id)}
+                        disabled={deleting}
+                        title="Delete"
+                      >
+                        <FiTrash2 size={12} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))

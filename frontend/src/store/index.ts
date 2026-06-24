@@ -256,6 +256,8 @@ interface AppState {
   setCachePage: (page: number) => void;
   cacheKeyword: string;
   setCacheKeyword: (keyword: string) => void;
+  cacheStatusFilter: string;
+  setCacheStatusFilter: (status: string) => void;
   cachedFilesPaged: DownloadRecord[];
   cachedFilesTotal: number;
   loadCachedFilesPaged: (page: number, keyword?: string) => void;
@@ -506,12 +508,15 @@ export const useStore = create<AppState>((set, get) => ({
   setCachePage: (page) => set({ cachePage: page }),
   cacheKeyword: '',
   setCacheKeyword: (keyword) => set({ cacheKeyword: keyword }),
+  cacheStatusFilter: 'all',
+  setCacheStatusFilter: (status) => set({ cacheStatusFilter: status }),
   cachedFilesPaged: [],
   cachedFilesTotal: 0,
   loadCachedFilesPaged: async (page, keyword) => {
     try {
       const kw = keyword ?? get().cacheKeyword;
-      const result = await api.listCachedFilesPaged(page, 20, kw);
+      const status = get().cacheStatusFilter;
+      const result = await api.listCachedFilesPaged(page, 20, kw, status);
       set({
         cachedFilesPaged: result.records || [],
         cachedFilesTotal: result.total || 0,

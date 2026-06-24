@@ -181,11 +181,11 @@ func (a *ServerApp) CancelDownload(id string) bool {
 	return a.downloadManager.CancelDownload(id)
 }
 
-func (a *ServerApp) ListCachedFilesPaged(page int, pageSize int, keyword string) ([]DownloadRecord, int64) {
+func (a *ServerApp) ListCachedFilesPaged(page int, pageSize int, keyword string, status string) ([]DownloadRecord, int64) {
 	if a.downloadManager == nil {
 		return []DownloadRecord{}, 0
 	}
-	return a.downloadManager.ListCachedFilesPaged(page, pageSize, keyword)
+	return a.downloadManager.ListCachedFilesPaged(page, pageSize, keyword, status)
 }
 
 func (a *ServerApp) DeleteCacheByID(id int) bool {
@@ -333,6 +333,7 @@ func registerIPCMethods(srv *ServerApp, ipcSrv *ipc.IPCServer) {
 			Page     int    `json:"page"`
 			PageSize int    `json:"pageSize"`
 			Keyword  string `json:"keyword"`
+			Status   string `json:"status"`
 		}
 		if err := json.Unmarshal(args, &p); err != nil {
 			return nil, err
@@ -343,11 +344,11 @@ func registerIPCMethods(srv *ServerApp, ipcSrv *ipc.IPCServer) {
 		if p.PageSize <= 0 {
 			p.PageSize = 20
 		}
-		records, total := srv.ListCachedFilesPaged(p.Page, p.PageSize, p.Keyword)
+		records, total := srv.ListCachedFilesPaged(p.Page, p.PageSize, p.Keyword, p.Status)
 		return map[string]interface{}{
-			"records": records,
-			"total":   total,
-			"page":    p.Page,
+			"records":  records,
+			"total":    total,
+			"page":     p.Page,
 			"pageSize": p.PageSize,
 		}, nil
 	})

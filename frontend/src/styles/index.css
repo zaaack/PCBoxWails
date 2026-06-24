@@ -751,11 +751,21 @@ body {
 
 .cache-ep-btn.cached {
   border-color: var(--success);
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--success);
 }
 
 .cache-ep-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.cache-ep-btn:disabled.cache-ep-btn.cached,
+.cache-ep-btn:disabled.cache-ep-btn.busy {
+  opacity: 1;
+  border-color: var(--success);
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--success);
 }
 
 .cache-ep-name {
@@ -1529,6 +1539,82 @@ select.settings-input {
 
 .cache-stat.pending {
   color: var(--accent);
+}
+
+.cache-status-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cache-tab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.15s;
+}
+
+.cache-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.cache-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.cache-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badge-completed {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--success);
+}
+
+.badge-downloading {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent);
+}
+
+.badge-pending {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+}
+
+.badge-failed {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+.cache-td-status {
+  white-space: nowrap;
+}
+
+.btn-cancel-icon {
+  color: var(--danger);
+}
+
+.btn-cancel-icon:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
 }
 
 .cache-manager-toolbar {

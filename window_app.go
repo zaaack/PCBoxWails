@@ -208,11 +208,12 @@ func (a *WindowApp) CancelDownload(id string) bool {
 	return toBool(result)
 }
 
-func (a *WindowApp) ListCachedFilesPaged(page int, pageSize int, keyword string) map[string]interface{} {
+func (a *WindowApp) ListCachedFilesPaged(page int, pageSize int, keyword string, status string) map[string]interface{} {
 	result, err := a.ipcClient.Call("ListCachedFilesPaged", map[string]interface{}{
 		"page":     page,
 		"pageSize": pageSize,
 		"keyword":  keyword,
+		"status":   status,
 	})
 	if err != nil {
 		log.Printf("[Window] ListCachedFilesPaged error: %v", err)

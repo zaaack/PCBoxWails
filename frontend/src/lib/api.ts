@@ -69,7 +69,7 @@ declare global {
           DeleteCachedFile(url: string): Promise<boolean>;
           GetDownloadQueue(): Promise<DownloadRecord[]>;
           CancelDownload(id: string): Promise<boolean>;
-          ListCachedFilesPaged(page: number, pageSize: number, keyword: string): Promise<PagedResult>;
+          ListCachedFilesPaged(page: number, pageSize: number, keyword: string, status: string): Promise<PagedResult>;
           DeleteCacheByID(id: number): Promise<boolean>;
           DeleteCacheBatch(ids: number[]): Promise<number>;
           GetCacheStats(): Promise<CacheStats>;
@@ -131,8 +131,8 @@ export const api = {
   deleteCachedFile: (url: string) => window.go.main.App.DeleteCachedFile(url),
   getDownloadQueue: () => window.go.main.App.GetDownloadQueue(),
   cancelDownload: (id: string) => window.go.main.App.CancelDownload(id),
-  listCachedFilesPaged: (page: number, pageSize: number, keyword: string) =>
-    window.go.main.App.ListCachedFilesPaged(page, pageSize, keyword),
+  listCachedFilesPaged: (page: number, pageSize: number, keyword: string, status: string) =>
+    window.go.main.App.ListCachedFilesPaged(page, pageSize, keyword, status),
   deleteCacheById: (id: number) => window.go.main.App.DeleteCacheByID(id),
   deleteCacheBatch: (ids: number[]) => window.go.main.App.DeleteCacheBatch(ids),
   getCacheStats: () => window.go.main.App.GetCacheStats(),
