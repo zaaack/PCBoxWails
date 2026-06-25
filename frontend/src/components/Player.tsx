@@ -34,14 +34,16 @@ export const PlayerView: React.FC = () => {
   const [isPaused, setIsPaused] = useState(false);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const progressSaveRef = useRef<ReturnType<typeof setInterval>>();
+  const isPausedRef = useRef(isPaused);
+  isPausedRef.current = isPaused;
 
   const resetHideTimer = useCallback(() => {
     setShowOverlay(true);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    if (!isPaused) {
+    if (!isPausedRef.current) {
       hideTimerRef.current = setTimeout(() => setShowOverlay(false), 3000);
     }
-  }, [isPaused]);
+  }, []);
 
   useEffect(() => {
     if (!videoContainerRef.current || !playUrl) return;
@@ -152,11 +154,16 @@ export const PlayerView: React.FC = () => {
   }, [playUrl, historyHighlightEpisode]);
 
   useEffect(() => {
-    resetHideTimer();
+    if (isPaused) {
+      setShowOverlay(true);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    } else {
+      resetHideTimer();
+    }
     return () => {
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     };
-  }, [isPaused, resetHideTimer]);
+  }, [isPaused]);
 
   useEffect(() => {
     progressSaveRef.current = setInterval(() => {
@@ -313,15 +320,12 @@ export const PlayerView: React.FC = () => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [showEpisodePanel, isSystemFullscreen]);
 
-  const resetHideTimerRef = useRef(resetHideTimer);
-  resetHideTimerRef.current = resetHideTimer;
-
   useEffect(() => {
     const container = videoContainerRef.current;
     if (!container) return;
 
     const handleMouse = () => {
-      resetHideTimerRef.current();
+      resetHideTimer();
     };
 
     container.addEventListener('mousemove', handleMouse);
@@ -369,7 +373,11 @@ export const PlayerView: React.FC = () => {
         <div ref={videoContainerRef} className="video-js-wrapper" />
       </div>
 
-      <div className={`player-overlay ${showOverlay || showEpisodePanel ? 'visible' : ''}`}>
+      <div
+        className={`player-overlay ${showOverlay || showEpisodePanel ? 'visible' : ''}`}
+        onMouseMove={resetHideTimer}
+        onClick={resetHideTimer}
+      >
         <div className="overlay-top">
           <button className="overlay-btn" onClick={handleBack} title="Back">
             <FiArrowLeft size={18} />

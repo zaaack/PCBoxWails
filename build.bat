@@ -14,7 +14,7 @@ setlocal
 set PCBOX_BUILD=1
 
 
-wails build 
+wails build -devtools
 
 REN wails build  -debug
 

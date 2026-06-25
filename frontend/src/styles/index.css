@@ -992,7 +992,7 @@ body {
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.3s;
-  z-index: 20;
+  z-index: 50;
 }
 
 .player-overlay.visible {
