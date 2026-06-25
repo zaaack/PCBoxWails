@@ -113,7 +113,7 @@ export const PlayerView: React.FC = () => {
         try {
           const { progress } = JSON.parse(saved);
           const seekTo = progress / 1000;
-          player.ready(() => {
+          player.on('loadedmetadata', () => {
             player.currentTime(seekTo);
             console.log('[PCBox] Restored cache progress:', seekTo, 's');
           });
