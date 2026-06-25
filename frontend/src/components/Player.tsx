@@ -32,6 +32,7 @@ export const PlayerView: React.FC = () => {
   const [showEpisodePanel, setShowEpisodePanel] = useState(false);
   const [showOverlay, setShowOverlay] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
+  const [progressConflict, setProgressConflict] = useState<{ tvk: number; local: number } | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const progressSaveRef = useRef<ReturnType<typeof setInterval>>();
   const cacheProgressRef = useRef<ReturnType<typeof setInterval>>();
@@ -107,25 +108,33 @@ export const PlayerView: React.FC = () => {
     });
 
     if (currentPlayFlag === 'cache' && currentEpisode) {
-      const hasTvKProgress =
+      const tvkProgress =
         historyHighlightEpisode?.progress &&
-        historyHighlightEpisode.episodeUrl === currentEpisode.url;
+        historyHighlightEpisode.episodeUrl === currentEpisode.url
+          ? historyHighlightEpisode.progress
+          : 0;
 
-      if (!hasTvKProgress) {
-        const key = `cache-progress-${currentEpisode.url}`;
+      const key = `cache-progress-${currentEpisode.url}`;
+      let localProgress = 0;
+      try {
         const saved = localStorage.getItem(key);
         if (saved) {
-          try {
-            const { progress } = JSON.parse(saved);
-            const seekTo = progress / 1000;
-            player.on('loadedmetadata', () => {
-              player.currentTime(seekTo);
-              console.log('[PCBox] Restored cache progress from localStorage:', seekTo, 's');
-            });
-          } catch {}
+          localProgress = JSON.parse(saved).progress || 0;
         }
+      } catch {}
+
+      const hasBoth = tvkProgress > 0 && localProgress > 0 && Math.abs(tvkProgress - localProgress) > 5000;
+
+      if (hasBoth) {
+        setProgressConflict({ tvk: tvkProgress, local: localProgress });
       } else {
-        console.log('[PCBox] TV-K progress exists, skipping localStorage restore');
+        const seekTo = (tvkProgress || localProgress) / 1000;
+        if (seekTo > 0) {
+          player.on('loadedmetadata', () => {
+            player.currentTime(seekTo);
+            console.log('[PCBox] Restored cache progress:', seekTo, 's');
+          });
+        }
       }
     }
 
@@ -389,6 +398,25 @@ export const PlayerView: React.FC = () => {
     resetHideTimer();
   };
 
+  const formatMs = (ms: number) => {
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return h > 0
+      ? `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
+      : `${m}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  const handleConflictChoice = (source: 'tvk' | 'local') => {
+    if (!progressConflict || !playerRef.current) return;
+    const seekTo = (source === 'tvk' ? progressConflict.tvk : progressConflict.local) / 1000;
+    playerRef.current.ready(() => {
+      playerRef.current?.currentTime(seekTo);
+    });
+    setProgressConflict(null);
+  };
+
   const isFs = isSystemFullscreen;
 
   if (!playUrl) {
@@ -499,6 +527,33 @@ export const PlayerView: React.FC = () => {
                     <span className="episode-panel-name">{index + 1}</span>
                   </button>
                 ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {progressConflict && (
+        <div className="episode-overlay" onClick={() => {}}>
+          <div className="episode-panel" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 380 }}>
+            <div className="episode-panel-header">
+              <h3>Playback Progress</h3>
+            </div>
+            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <p style={{ margin: 0, fontSize: 14, opacity: 0.8 }}>This video has progress from two sources, choose one:</p>
+              <button
+                className="btn btn-secondary"
+                style={{ textAlign: 'left', padding: '12px 16px' }}
+                onClick={() => handleConflictChoice('tvk')}
+              >
+                TV-K History — {formatMs(progressConflict.tvk)}
+              </button>
+              <button
+                className="btn btn-secondary"
+                style={{ textAlign: 'left', padding: '12px 16px' }}
+                onClick={() => handleConflictChoice('local')}
+              >
+                Local Cache — {formatMs(progressConflict.local)}
+              </button>
             </div>
           </div>
         </div>
