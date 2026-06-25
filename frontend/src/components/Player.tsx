@@ -34,6 +34,7 @@ export const PlayerView: React.FC = () => {
   const [isPaused, setIsPaused] = useState(false);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const progressSaveRef = useRef<ReturnType<typeof setInterval>>();
+  const cacheProgressRef = useRef<ReturnType<typeof setInterval>>();
   const isPausedRef = useRef(isPaused);
   isPausedRef.current = isPaused;
 
@@ -105,6 +106,21 @@ export const PlayerView: React.FC = () => {
       localStorage.setItem('player-volume', String(player.volume()));
     });
 
+    if (currentPlayFlag === 'cache' && currentEpisode) {
+      const key = `cache-progress-${currentEpisode.url}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          const { progress } = JSON.parse(saved);
+          const seekTo = progress / 1000;
+          player.ready(() => {
+            player.currentTime(seekTo);
+            console.log('[PCBox] Restored cache progress:', seekTo, 's');
+          });
+        } catch {}
+      }
+    }
+
     (player as any).hotkeys({
       volumeStep: 0.1,
       seekStep: 5,
@@ -114,6 +130,10 @@ export const PlayerView: React.FC = () => {
     });
 
     player.on('ended', () => {
+      if (currentPlayFlag === 'cache' && currentEpisode) {
+        const key = `cache-progress-${currentEpisode.url}`;
+        localStorage.removeItem(key);
+      }
       playNextEpisode();
     });
 
@@ -191,6 +211,31 @@ export const PlayerView: React.FC = () => {
       }
     };
   }, [currentVideo, currentEpisode, currentEpisodeIndex, currentPlayFlag]);
+
+  useEffect(() => {
+    if (cacheProgressRef.current) {
+      clearInterval(cacheProgressRef.current);
+    }
+
+    if (currentPlayFlag !== 'cache' || !currentEpisode) return;
+
+    const filePath = currentEpisode.url;
+    const key = `cache-progress-${filePath}`;
+
+    cacheProgressRef.current = setInterval(() => {
+      if (playerRef.current) {
+        const currentTime = Math.floor((playerRef.current.currentTime() || 0) * 1000);
+        const duration = Math.floor((playerRef.current.duration() || 0) * 1000);
+        localStorage.setItem(key, JSON.stringify({ progress: currentTime, duration }));
+      }
+    }, 5000);
+
+    return () => {
+      if (cacheProgressRef.current) {
+        clearInterval(cacheProgressRef.current);
+      }
+    };
+  }, [currentPlayFlag, currentEpisode]);
 
   const playNextEpisode = () => {
     if (!currentVideo || !currentPlayFlag) return;
