@@ -222,6 +222,47 @@ func (dm *DownloadManager) CancelDownload(id string) bool {
 	return true
 }
 
+func resolveProxyURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	if parsed.Host == "" || parsed.Path != "/proxy" {
+		return rawURL
+	}
+	if original := parsed.Query().Get("u"); original != "" {
+		log.Printf("[Cache] Resolved proxy URL to original: %s", original[:80])
+		return original
+	}
+	return rawURL
+}
+
+func (dm *DownloadManager) RetryDownload(id string, emitProgress func(string, DownloadProgress)) bool {
+	log.Printf("[Cache] RetryDownload called with id: %s", id)
+	var record DownloadRecord
+	if dm.cacheDB.db.Where("url_hash = ?", id).First(&record).Error != nil {
+		log.Printf("[Cache] RetryDownload: record not found for id: %s", id)
+		return false
+	}
+	log.Printf("[Cache] RetryDownload: found record status=%s url=%s videoName=%s filePath=%s", record.Status, record.URL, record.VideoName, record.FilePath)
+	if record.Status != "failed" {
+		log.Printf("[Cache] RetryDownload: record status is '%s', not 'failed', skipping", record.Status)
+		return false
+	}
+
+	dm.cacheDB.db.Model(&DownloadRecord{}).Where("url_hash = ?", id).
+		Updates(map[string]interface{}{"status": "pending", "error": "", "progress": 0})
+
+	dm.downloadsMu.Lock()
+	dm.downloads[id] = &DownloadProgress{ID: id, Progress: 0, Status: "downloading"}
+	dm.downloadsMu.Unlock()
+
+	downloadURL := resolveProxyURL(record.URL)
+	log.Printf("[Cache] RetryDownload: launching executeDownload goroutine for %s", record.VideoName)
+	go dm.executeDownload(id, downloadURL, record.Headers, record.VideoName, emitProgress)
+	return true
+}
+
 func (dm *DownloadManager) ResumePendingDownloads(emitProgress func(string, DownloadProgress)) {
 	var records []DownloadRecord
 	dm.cacheDB.db.Where("status IN ?", []string{"pending", "downloading"}).Find(&records)
@@ -234,7 +275,8 @@ func (dm *DownloadManager) ResumePendingDownloads(emitProgress func(string, Down
 		r.Status = "pending"
 		r.Progress = 0
 		dm.cacheDB.db.Save(r)
-		go dm.executeDownload(r.URL, r.Headers, r.VideoName, emitProgress)
+		downloadURL := resolveProxyURL(r.URL)
+		go dm.executeDownload(r.URLHash, downloadURL, r.Headers, r.VideoName, emitProgress)
 	}
 }
 
@@ -263,16 +305,20 @@ func (dm *DownloadManager) DownloadVideo(rawURL string, headers map[string]strin
 	dm.downloads[id] = &DownloadProgress{ID: id, Progress: 0, Status: "downloading"}
 	dm.downloadsMu.Unlock()
 
-	go dm.executeDownload(rawURL, string(headersJSON), videoName, emitProgress)
+	go dm.executeDownload(id, rawURL, string(headersJSON), videoName, emitProgress)
 
 	return id
 }
 
-func (dm *DownloadManager) executeDownload(rawURL string, headersJSON string, videoName string, emitProgress func(string, DownloadProgress)) {
-	id := urlHash(rawURL)
+func (dm *DownloadManager) executeDownload(id string, rawURL string, headersJSON string, videoName string, emitProgress func(string, DownloadProgress)) {
+	log.Printf("[Cache] executeDownload: START for %s (id=%s, isHLS=%v, url=%s)", videoName, id, isHLSURL(rawURL), rawURL[:80])
 
 	var headers map[string]string
-	json.Unmarshal([]byte(headersJSON), &headers)
+	if headersJSON != "" {
+		if err := json.Unmarshal([]byte(headersJSON), &headers); err != nil {
+			log.Printf("[Cache] executeDownload: failed to parse headers: %v", err)
+		}
+	}
 
 	dm.cacheDB.db.Model(&DownloadRecord{}).Where("url_hash = ?", id).
 		Updates(map[string]interface{}{"status": "downloading", "progress": 0})
@@ -281,22 +327,31 @@ func (dm *DownloadManager) executeDownload(rawURL string, headersJSON string, vi
 	dm.downloads[id] = &DownloadProgress{ID: id, Progress: 0, Status: "downloading"}
 	dm.downloadsMu.Unlock()
 
+	if emitProgress != nil {
+		emitProgress(id, *dm.downloads[id])
+	}
+
 	if isHLSURL(rawURL) {
+		log.Printf("[Cache] executeDownload: calling downloadHLS for %s", videoName)
 		dm.downloadHLS(id, rawURL, headers, videoName, emitProgress)
 	} else {
+		log.Printf("[Cache] executeDownload: calling downloadMP4 for %s", videoName)
 		dm.downloadMP4(id, rawURL, headers, videoName, emitProgress)
 	}
+	log.Printf("[Cache] executeDownload: DONE for %s", videoName)
 }
 
 func (dm *DownloadManager) downloadMP4(id string, rawURL string, headers map[string]string, videoName string, emitProgress func(string, DownloadProgress)) {
+	log.Printf("[Cache] downloadMP4: starting for %s", videoName)
 	os.MkdirAll(dm.cacheDir, 0755)
 
 	fileName := fmt.Sprintf("%s_%s.mp4", sanitizeFilename(videoName), id[:8])
 	filePath := filepath.Join(dm.cacheDir, fileName)
 
-	dm.updateProgress(id, 0, "downloading", "")
-	if emitProgress != nil {
-		emitProgress(id, *dm.downloads[id])
+	var existingSize int64
+	if fi, err := os.Stat(filePath); err == nil {
+		existingSize = fi.Size()
+		log.Printf("[Cache] downloadMP4: found partial file %s (%d bytes), will resume", filePath, existingSize)
 	}
 
 	req, err := http.NewRequest("GET", rawURL, nil)
@@ -312,6 +367,10 @@ func (dm *DownloadManager) downloadMP4(id string, rawURL string, headers map[str
 		req.Header.Set("User-Agent", defaultUA2)
 	}
 
+	if existingSize > 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", existingSize))
+	}
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		dm.failDownload(id, err.Error(), emitProgress)
@@ -319,12 +378,24 @@ func (dm *DownloadManager) downloadMP4(id string, rawURL string, headers map[str
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	resumed := false
+	if existingSize > 0 && resp.StatusCode == http.StatusPartialContent {
+		resumed = true
+	} else if existingSize > 0 && resp.StatusCode == http.StatusOK {
+		existingSize = 0
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
 		dm.failDownload(id, fmt.Sprintf("HTTP %d", resp.StatusCode), emitProgress)
 		return
 	}
 
-	out, err := os.Create(filePath)
+	var out *os.File
+	if resumed {
+		out, err = os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0644)
+	} else {
+		out, err = os.Create(filePath)
+	}
 	if err != nil {
 		dm.failDownload(id, err.Error(), emitProgress)
 		return
@@ -332,16 +403,21 @@ func (dm *DownloadManager) downloadMP4(id string, rawURL string, headers map[str
 	defer out.Close()
 
 	totalSize := resp.ContentLength
+	if resumed && totalSize > 0 {
+		totalSize += existingSize
+	}
 	var downloaded int64
+	if resumed {
+		downloaded = existingSize
+	}
 	buf := make([]byte, 32*1024)
-	lastProgressEmit := int64(0)
+	lastProgressEmit := downloaded
 
 	for {
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
 			if _, writeErr := out.Write(buf[:n]); writeErr != nil {
 				dm.failDownload(id, writeErr.Error(), emitProgress)
-				os.Remove(filePath)
 				return
 			}
 			downloaded += int64(n)
@@ -362,7 +438,6 @@ func (dm *DownloadManager) downloadMP4(id string, rawURL string, headers map[str
 				break
 			}
 			dm.failDownload(id, readErr.Error(), emitProgress)
-			os.Remove(filePath)
 			return
 		}
 	}
@@ -382,7 +457,7 @@ func (dm *DownloadManager) downloadMP4(id string, rawURL string, headers map[str
 	if emitProgress != nil {
 		emitProgress(id, *dm.downloads[id])
 	}
-	log.Printf("[Cache] Downloaded MP4: %s (%d bytes)", fileName, downloaded)
+	log.Printf("[Cache] Downloaded MP4: %s (%d bytes, resumed=%v)", fileName, downloaded, resumed)
 }
 
 func (dm *DownloadManager) downloadHLS(id string, m3u8URL string, headers map[string]string, videoName string, emitProgress func(string, DownloadProgress)) {
@@ -398,9 +473,12 @@ func (dm *DownloadManager) downloadHLS(id string, m3u8URL string, headers map[st
 
 	m3u8Content, err := dm.downloadURL(m3u8URL, headers)
 	if err != nil {
+		log.Printf("[Cache] HLS: failed to download m3u8: %v", err)
 		dm.failDownload(id, err.Error(), emitProgress)
 		return
 	}
+
+	log.Printf("[Cache] HLS: m3u8 downloaded (%d bytes), parsing...", len(m3u8Content))
 
 	segments := dm.parseM3U8(string(m3u8Content), m3u8URL)
 	if len(segments) == 0 {
@@ -413,6 +491,16 @@ func (dm *DownloadManager) downloadHLS(id string, m3u8URL string, headers map[st
 	var totalSize int64
 	for i, segURL := range segments {
 		segFile := filepath.Join(hlsDir, fmt.Sprintf("seg_%05d.ts", i))
+		if _, err := os.Stat(segFile); err == nil {
+			totalSize += func() int64 {
+				fi, _ := os.Stat(segFile)
+				if fi != nil {
+					return fi.Size()
+				}
+				return 0
+			}()
+			continue
+		}
 		segData, err := dm.downloadURL(segURL, headers)
 		if err != nil {
 			log.Printf("[Cache] HLS segment %d failed: %v", i, err)
@@ -462,6 +550,11 @@ func (dm *DownloadManager) failDownload(id string, errMsg string, emitProgress f
 }
 
 func (dm *DownloadManager) downloadURL(rawURL string, headers map[string]string) ([]byte, error) {
+	if len(rawURL) > 80 {
+		log.Printf("[Cache] downloadURL: fetching %s...", rawURL[:80])
+	} else {
+		log.Printf("[Cache] downloadURL: fetching %s", rawURL)
+	}
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
 		return nil, err
@@ -476,14 +569,17 @@ func (dm *DownloadManager) downloadURL(rawURL string, headers map[string]string)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		log.Printf("[Cache] downloadURL: request failed: %v", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		log.Printf("[Cache] downloadURL: HTTP %d for %s", resp.StatusCode, rawURL[:min(80, len(rawURL))])
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
+	log.Printf("[Cache] downloadURL: success, reading body...")
 	return io.ReadAll(resp.Body)
 }
 

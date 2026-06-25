@@ -35,6 +35,8 @@ export function ListCachedFiles():Promise<Array<Record<string, any>>>;
 
 export function ListCachedFilesPaged(arg1:number,arg2:number,arg3:string,arg4:string):Promise<Record<string, any>>;
 
+export function RetryDownload(arg1:string):Promise<boolean>;
+
 export function SelectCacheDir():Promise<string>;
 
 export function SendMessage(arg1:string,arg2:number,arg3:any):Promise<boolean>;

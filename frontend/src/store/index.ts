@@ -51,6 +51,7 @@ const MessageCodes = {
 
 const SEARCH_CONFIG_KEY = 'pcbox_search_config';
 const THEME_KEY = 'pcbox_theme';
+const SHOW_PLAYER_TIME_KEY = 'pcbox_show_player_time';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -88,6 +89,22 @@ function loadTheme(): ThemeMode {
 function saveTheme(theme: ThemeMode): void {
   try {
     localStorage.setItem(THEME_KEY, theme);
+  } catch {}
+}
+
+function loadShowPlayerTime(): boolean {
+  try {
+    const raw = localStorage.getItem(SHOW_PLAYER_TIME_KEY);
+    if (raw !== null) {
+      return raw === 'true';
+    }
+  } catch {}
+  return true; // default true
+}
+
+function saveShowPlayerTime(show: boolean): void {
+  try {
+    localStorage.setItem(SHOW_PLAYER_TIME_KEY, String(show));
   } catch {}
 }
 
@@ -167,6 +184,9 @@ interface AppState {
 
   menuBarVisible: boolean;
   setMenuBarVisible: (visible: boolean) => void;
+
+  showPlayerTime: boolean;
+  setShowPlayerTime: (show: boolean) => void;
 
   sources: SourceBean[];
   setSources: (sources: SourceBean[]) => void;
@@ -253,6 +273,7 @@ interface AppState {
   downloadQueue: DownloadRecord[];
   loadDownloadQueue: () => void;
   cancelDownload: (id: string) => Promise<boolean>;
+  retryDownload: (id: string) => Promise<boolean>;
 
   cacheStats: CacheStats;
   loadCacheStats: () => void;
@@ -308,6 +329,12 @@ export const useStore = create<AppState>((set, get) => ({
   setMenuBarVisible: (visible) => {
     api.setMenuBarVisibility(visible);
     set({ menuBarVisible: visible });
+  },
+
+  showPlayerTime: loadShowPlayerTime(),
+  setShowPlayerTime: (show) => {
+    saveShowPlayerTime(show);
+    set({ showPlayerTime: show });
   },
 
   sources: [],
@@ -421,15 +448,11 @@ export const useStore = create<AppState>((set, get) => ({
   setDownloadProgress: (id, progress) => {
     const state = get();
     const newMap = new Map(state.downloadProgress);
-    if (progress.status === 'completed' || progress.status === 'failed') {
-      newMap.delete(id);
-      if (progress.status === 'completed') {
-        setTimeout(() => {
-          get().loadCachedFiles();
-        }, 100);
-      }
-    } else {
-      newMap.set(id, progress);
+    newMap.set(id, progress);
+    if (progress.status === 'completed') {
+      setTimeout(() => {
+        get().loadCachedFiles();
+      }, 100);
     }
     set({ downloadProgress: newMap });
   },
@@ -509,6 +532,18 @@ export const useStore = create<AppState>((set, get) => ({
       const result = await api.cancelDownload(id);
       if (result) {
         get().loadDownloadQueue();
+      }
+      return result;
+    } catch (e) {
+      return false;
+    }
+  },
+  retryDownload: async (id) => {
+    try {
+      const result = await api.retryDownload(id);
+      if (result) {
+        get().loadCachedFilesPaged(get().cachePage);
+        get().loadCacheStats();
       }
       return result;
     } catch (e) {

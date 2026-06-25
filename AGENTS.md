@@ -18,10 +18,14 @@ No separate Go build needed — `wails dev`/`wails build` handles everything.
 ## Architecture
 
 ```
-Go backend (main.go, app.go, ws-server.go, proxy-server.go)
-  ├── WebSocket server (default port 9898)
-  ├── Proxy server (random port, 127.0.0.1)
-  └── Exposes methods to frontend via Wails IPC
+Go backend
+  ├── app.go — App struct (download manager, cache, etc.)
+  ├── server_app.go — ServerApp struct (owns App logic, runs in server process, exposes IPC methods)
+  ├── window_app.go — WindowApp struct (runs in window process, proxies calls to ServerApp via IPC)
+  ├── main.go — entry point, embeds frontend/dist
+  ├── download-manager.go — download + cache logic
+  ├── cache-db.go — SQLite cache DB (GORM)
+  └── internal/server/ — WsServer, ProxyServer
 
 Frontend (frontend/src/)
   ├── App.tsx — root, initializes WS server on mount
@@ -30,6 +34,27 @@ Frontend (frontend/src/)
   ├── components/ — React views (Home, Search, Player, etc.)
   └── wailsjs/go/main/ — AUTO-GENERATED Go bindings (do not edit)
 ```
+
+## IPC Binding Architecture
+
+**Frontend calls `window.go.main.App.*`**, which is aliased from `window.go.main.WindowApp` (see `api.ts:3`).
+
+The call chain is:
+```
+Frontend (api.ts)
+  → window.go.main.App.MethodName()
+  → WindowApp.MethodName()   (window_app.go, Wails binding)
+  → IPC call to server process
+  → ServerApp.MethodName()   (server_app.go, actual logic)
+```
+
+**To add a new method exposed to frontend, you must update ALL FOUR layers:**
+1. `download-manager.go` (or relevant logic file) — actual implementation
+2. `server_app.go` — ServerApp method + IPC registration in `registerIPCMethods()`
+3. `window_app.go` — WindowApp proxy method (calls `a.ipcClient.Call(...)`)
+4. `frontend/wailsjs/go/main/WindowApp.js` + `WindowApp.d.ts` — Wails binding (auto-generated, but must be regenerated via `wails generate module`)
+
+Then declare the type in `frontend/src/lib/api.ts` (the `window.go.main.App` interface) and call it from the store.
 
 ## Key Gotchas
 

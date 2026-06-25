@@ -217,6 +217,17 @@ func (a *WindowApp) CancelDownload(id string) bool {
 	return toBool(result)
 }
 
+func (a *WindowApp) RetryDownload(id string) bool {
+	log.Printf("[Window] RetryDownload called with id: %s", id)
+	result, err := a.ipcClient.Call("RetryDownload", id)
+	if err != nil {
+		log.Printf("[Window] RetryDownload error: %v", err)
+		return false
+	}
+	log.Printf("[Window] RetryDownload result: %v", result)
+	return toBool(result)
+}
+
 func (a *WindowApp) ListCachedFilesPaged(page int, pageSize int, keyword string, status string) map[string]interface{} {
 	result, err := a.ipcClient.Call("ListCachedFilesPaged", map[string]interface{}{
 		"page":     page,

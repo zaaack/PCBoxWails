@@ -70,6 +70,10 @@ export function ListCachedFilesPaged(arg1, arg2, arg3, arg4) {
   return window['go']['main']['WindowApp']['ListCachedFilesPaged'](arg1, arg2, arg3, arg4);
 }
 
+export function RetryDownload(arg1) {
+  return window['go']['main']['WindowApp']['RetryDownload'](arg1);
+}
+
 export function SelectCacheDir() {
   return window['go']['main']['WindowApp']['SelectCacheDir']();
 }

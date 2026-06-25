@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { useStore } from '../store';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useStore, CacheTask } from '../store';
+import { DownloadRecord } from '../lib/api';
 import {
   FiTrash2,
   FiSearch,
@@ -13,6 +14,7 @@ import {
   FiAlertCircle,
   FiList,
   FiPlay,
+  FiRefreshCw,
 } from 'react-icons/fi';
 
 const formatSize = (bytes: number): string => {
@@ -24,7 +26,9 @@ const formatSize = (bytes: number): string => {
 };
 
 const formatDate = (dateStr: string): string => {
+  if (!dateStr) return '';
   const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
   return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
@@ -45,6 +49,7 @@ export const CacheManager: React.FC = () => {
     cacheStatusFilter,
     cacheStats,
     downloadProgress,
+    cacheTasks,
     loadCachedFilesPaged,
     loadCacheStats,
     setCachePage,
@@ -53,6 +58,7 @@ export const CacheManager: React.FC = () => {
     deleteCacheById,
     deleteCacheBatch,
     cancelDownload,
+    retryDownload,
     playFromCache,
     addToast,
   } = useStore();
@@ -61,6 +67,38 @@ export const CacheManager: React.FC = () => {
   const [searchInput, setSearchInput] = useState(cacheKeyword);
   const [deleting, setDeleting] = useState(false);
 
+  const activeCacheTasks = useMemo(() => {
+    return cacheTasks.filter(
+      (t) => t.status === 'pending' || t.status === 'resolving' || t.status === 'downloading'
+    );
+  }, [cacheTasks]);
+
+  const displayRecords = useMemo(() => {
+    if (activeCacheTasks.length === 0) return cachedFilesPaged;
+    const backendHashes = new Set(cachedFilesPaged.map((r) => r.urlHash));
+    const taskRecords: DownloadRecord[] = activeCacheTasks
+      .filter((t) => !t.downloadId || !backendHashes.has(t.downloadId))
+      .map((t, i) => ({
+        id: -(i + 1),
+        urlHash: t.downloadId || t.epKey,
+        url: t.episode.url,
+        headers: '',
+        videoName: t.episode.name,
+        filePath: '',
+        isHLS: false,
+        size: 0,
+        status: t.status === 'resolving' ? 'pending' : t.status,
+        progress: t.progress,
+        error: t.error,
+        createdAt: '',
+        updatedAt: '',
+      }));
+    const filter = cacheStatusFilter;
+    const filteredTasks = filter === 'all' ? taskRecords : taskRecords.filter((r) => r.status === filter);
+    if (filteredTasks.length === 0) return cachedFilesPaged;
+    return [...filteredTasks, ...cachedFilesPaged];
+  }, [activeCacheTasks, cachedFilesPaged, cacheStatusFilter]);
+
   const pageSize = 20;
   const totalPages = Math.max(1, Math.ceil(cachedFilesTotal / pageSize));
 
@@ -68,6 +106,18 @@ export const CacheManager: React.FC = () => {
     loadCachedFilesPaged(1);
     loadCacheStats();
   }, []);
+
+  const prevTaskCountRef = React.useRef(0);
+  useEffect(() => {
+    const activeCount = cacheTasks.filter(
+      (t) => t.status === 'pending' || t.status === 'resolving' || t.status === 'downloading'
+    ).length;
+    if (activeCount > 0 && prevTaskCountRef.current === 0) {
+      loadCachedFilesPaged(cachePage);
+      loadCacheStats();
+    }
+    prevTaskCountRef.current = activeCount;
+  }, [cacheTasks]);
 
   const handleTabChange = (status: string) => {
     setSelected(new Set());
@@ -101,10 +151,10 @@ export const CacheManager: React.FC = () => {
   };
 
   const toggleSelectAll = () => {
-    if (selected.size === cachedFilesPaged.length) {
+    if (selected.size === displayRecords.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(cachedFilesPaged.map((r) => r.id)));
+      setSelected(new Set(displayRecords.map((r) => r.id)));
     }
   };
 
@@ -139,6 +189,15 @@ export const CacheManager: React.FC = () => {
     loadCachedFilesPaged(cachePage);
     loadCacheStats();
     addToast({ message: 'Download cancelled', type: 'info' });
+  };
+
+  const handleRetrySingle = async (urlHash: string) => {
+    const result = await retryDownload(urlHash);
+    if (result) {
+      loadCachedFilesPaged(cachePage);
+      loadCacheStats();
+      addToast({ message: 'Retrying download...', type: 'info' });
+    }
   };
 
   const handlePlay = (record: any) => {
@@ -231,7 +290,7 @@ export const CacheManager: React.FC = () => {
               <th className="cache-th-check">
                 <input
                   type="checkbox"
-                  checked={cachedFilesPaged.length > 0 && selected.size === cachedFilesPaged.length}
+                  checked={displayRecords.length > 0 && selected.size === displayRecords.length}
                   onChange={toggleSelectAll}
                 />
               </th>
@@ -244,14 +303,14 @@ export const CacheManager: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {cachedFilesPaged.length === 0 ? (
+            {displayRecords.length === 0 ? (
               <tr>
                 <td colSpan={7} className="cache-empty">
                   No records found
                 </td>
               </tr>
             ) : (
-              cachedFilesPaged.map((record) => (
+              displayRecords.map((record) => (
                 <tr key={record.id} className={selected.has(record.id) ? 'selected' : ''}>
                   <td className="cache-td-check">
                     <input
@@ -287,15 +346,24 @@ export const CacheManager: React.FC = () => {
                       >
                         <FiX size={12} />
                       </button>
-                    ) : record.status !== 'completed' ? (
-                      <button
-                        className="btn btn-xs btn-icon btn-danger-icon"
-                        onClick={() => handleDeleteSingle(record.id)}
-                        disabled={deleting}
-                        title="Delete"
-                      >
-                        <FiTrash2 size={12} />
-                      </button>
+                    ) : record.status === 'failed' ? (
+                      <>
+                        <button
+                          className="btn btn-xs btn-icon btn-retry-icon"
+                          onClick={() => handleRetrySingle(record.urlHash)}
+                          title="Retry"
+                        >
+                          <FiRefreshCw size={12} />
+                        </button>
+                        <button
+                          className="btn btn-xs btn-icon btn-danger-icon"
+                          onClick={() => handleDeleteSingle(record.id)}
+                          disabled={deleting}
+                          title="Delete"
+                        >
+                          <FiTrash2 size={12} />
+                        </button>
+                      </>
                     ) : (
                       <button
                         className="btn btn-xs btn-icon btn-danger-icon"

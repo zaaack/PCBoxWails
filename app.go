@@ -214,6 +214,15 @@ func (a *App) CancelDownload(id string) bool {
 	return a.downloadManager.CancelDownload(id)
 }
 
+func (a *App) RetryDownload(id string) bool {
+	if a.downloadManager == nil {
+		return false
+	}
+	return a.downloadManager.RetryDownload(id, func(id string, progress DownloadProgress) {
+		a.emitEvent("download-progress", progress)
+	})
+}
+
 func (a *App) ListCachedFilesPaged(page int, pageSize int, keyword string, status string) ([]DownloadRecord, int64) {
 	if a.downloadManager == nil {
 		return []DownloadRecord{}, 0

@@ -1021,6 +1021,40 @@ body {
   gap: 6px;
 }
 
+.player-time-display {
+  color: white;
+  font-size: 13px;
+  font-family: monospace;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.player-time-display.visible {
+  opacity: 1;
+}
+
+.player-system-time {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  color: white;
+  font-size: 36px;
+  font-family: sans-serif;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 4px 10px;
+  border-radius: 4px;
+  z-index: 45;
+  pointer-events: none;
+}
+
 .overlay-btn {
   width: 36px;
   height: 36px;
@@ -1622,6 +1656,15 @@ select.settings-input {
 }
 
 .btn-play-icon:hover {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent);
+}
+
+.btn-retry-icon {
+  color: var(--accent);
+}
+
+.btn-retry-icon:hover {
   background: rgba(99, 102, 241, 0.1);
   color: var(--accent);
 }

@@ -188,6 +188,15 @@ func (a *ServerApp) CancelDownload(id string) bool {
 	return a.downloadManager.CancelDownload(id)
 }
 
+func (a *ServerApp) RetryDownload(id string) bool {
+	if a.downloadManager == nil {
+		return false
+	}
+	return a.downloadManager.RetryDownload(id, func(id string, progress DownloadProgress) {
+		a.emitEvent("download-progress", progress)
+	})
+}
+
 func (a *ServerApp) ListCachedFilesPaged(page int, pageSize int, keyword string, status string) ([]DownloadRecord, int64) {
 	if a.downloadManager == nil {
 		return []DownloadRecord{}, 0
@@ -337,6 +346,14 @@ func registerIPCMethods(srv *ServerApp, ipcSrv *ipc.IPCServer) {
 			return nil, err
 		}
 		return srv.CancelDownload(id), nil
+	})
+
+	ipcSrv.RegisterMethod("RetryDownload", func(args json.RawMessage) (interface{}, error) {
+		var id string
+		if err := json.Unmarshal(args, &id); err != nil {
+			return nil, err
+		}
+		return srv.RetryDownload(id), nil
 	})
 
 	ipcSrv.RegisterMethod("ListCachedFilesPaged", func(args json.RawMessage) (interface{}, error) {

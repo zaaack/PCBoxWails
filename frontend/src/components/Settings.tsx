@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
 import { api } from '../lib/api';
 
+
 interface SettingsProps {
   onStartServer: (port: number) => void;
   onStopServer: () => void;
@@ -11,6 +12,7 @@ export const Settings: React.FC<SettingsProps> = ({ onStartServer, onStopServer 
   const {
     wsRunning, wsPort, localIp, connectedClient, theme, setTheme, menuBarVisible, setMenuBarVisible,
     cacheDir, loadCacheDir, selectCacheDir, cacheStats, loadCacheStats,
+    showPlayerTime, setShowPlayerTime,
   } = useStore();
   const [port, setPort] = useState(wsPort);
 
@@ -52,6 +54,15 @@ export const Settings: React.FC<SettingsProps> = ({ onStartServer, onStopServer 
             onClick={() => setMenuBarVisible(!menuBarVisible)}
           >
             {menuBarVisible ? 'Visible' : 'Hidden'}
+          </button>
+        </div>
+        <div className="settings-row">
+          <label>Player Time Display:</label>
+          <button
+            className={`btn ${showPlayerTime ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setShowPlayerTime(!showPlayerTime)}
+          >
+            {showPlayerTime ? 'On' : 'Off'}
           </button>
         </div>
       </div>

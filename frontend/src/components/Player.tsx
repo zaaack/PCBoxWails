@@ -5,8 +5,14 @@ import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import 'videojs-hotkeys';
 import Player from 'video.js/dist/types/player';
-import { FiArrowLeft, FiList, FiMaximize, FiMonitor, FiMapPin } from 'react-icons/fi';
+import { FiArrowLeft, FiList, FiMaximize, FiMonitor, FiMapPin, FiSkipBack, FiSkipForward } from 'react-icons/fi';
 import { MdOutlinePlayDisabled } from 'react-icons/md';
+
+const formatSystemTime = (date: Date) => {
+  const h = date.getHours();
+  const m = date.getMinutes();
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+};
 
 export const PlayerView: React.FC = () => {
   const {
@@ -22,6 +28,7 @@ export const PlayerView: React.FC = () => {
     saveHistory,
     historyHighlightEpisode,
     getCachedFile,
+    showPlayerTime,
   } = useStore();
 
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -33,6 +40,7 @@ export const PlayerView: React.FC = () => {
   const [showOverlay, setShowOverlay] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const [progressConflict, setProgressConflict] = useState<{ tvk: number; local: number } | null>(null);
+  const [systemTime, setSystemTime] = useState(() => formatSystemTime(new Date()));
   const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const progressSaveRef = useRef<ReturnType<typeof setInterval>>();
   const cacheProgressRef = useRef<ReturnType<typeof setInterval>>();
@@ -268,6 +276,20 @@ export const PlayerView: React.FC = () => {
     }
   };
 
+  const playPreviousEpisode = () => {
+    if (!currentVideo || !currentPlayFlag) return;
+
+    const playFlags = currentVideo.urlBean?.infoList || [];
+    const currentFlag = playFlags.find((f) => f.flag === currentPlayFlag);
+    if (!currentFlag) return;
+
+    const prevIndex = currentEpisodeIndex - 1;
+    if (prevIndex >= 0) {
+      const prevEpisode = currentFlag.beanList[prevIndex];
+      handlePlayEpisode(prevEpisode, prevIndex, currentPlayFlag);
+    }
+  };
+
   const handlePlayEpisode = async (episode: any, episodeIndex: number, playFlag: string) => {
     if (!currentVideo || !currentVideo.sourceKey) return;
 
@@ -454,6 +476,12 @@ export const PlayerView: React.FC = () => {
         <div ref={videoContainerRef} className="video-js-wrapper" />
       </div>
 
+      {showPlayerTime && (
+        <div className="player-system-time">
+          {systemTime}
+        </div>
+      )}
+
       <div
         className={`player-overlay ${showOverlay || showEpisodePanel ? 'visible' : ''}`}
         onMouseMove={resetHideTimer}
@@ -469,6 +497,22 @@ export const PlayerView: React.FC = () => {
         </div>
 
         <div className="overlay-top-right">
+          <button
+            className="overlay-btn"
+            onClick={playPreviousEpisode}
+            title="Previous Episode"
+            disabled={currentEpisodeIndex === 0}
+          >
+            <FiSkipBack size={18} />
+          </button>
+          <button
+            className="overlay-btn"
+            onClick={playNextEpisode}
+            title="Next Episode"
+            disabled={!currentVideo || !currentPlayFlag || currentEpisodeIndex >= (currentVideo.urlBean?.infoList?.find(f => f.flag === currentPlayFlag)?.beanList.length || 0) - 1}
+          >
+            <FiSkipForward size={18} />
+          </button>
           <button
             className="overlay-btn"
             onClick={() => setShowEpisodePanel(!showEpisodePanel)}
