@@ -107,17 +107,25 @@ export const PlayerView: React.FC = () => {
     });
 
     if (currentPlayFlag === 'cache' && currentEpisode) {
-      const key = `cache-progress-${currentEpisode.url}`;
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        try {
-          const { progress } = JSON.parse(saved);
-          const seekTo = progress / 1000;
-          player.on('loadedmetadata', () => {
-            player.currentTime(seekTo);
-            console.log('[PCBox] Restored cache progress:', seekTo, 's');
-          });
-        } catch {}
+      const hasTvKProgress =
+        historyHighlightEpisode?.progress &&
+        historyHighlightEpisode.episodeUrl === currentEpisode.url;
+
+      if (!hasTvKProgress) {
+        const key = `cache-progress-${currentEpisode.url}`;
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          try {
+            const { progress } = JSON.parse(saved);
+            const seekTo = progress / 1000;
+            player.on('loadedmetadata', () => {
+              player.currentTime(seekTo);
+              console.log('[PCBox] Restored cache progress from localStorage:', seekTo, 's');
+            });
+          } catch {}
+        }
+      } else {
+        console.log('[PCBox] TV-K progress exists, skipping localStorage restore');
       }
     }
 
