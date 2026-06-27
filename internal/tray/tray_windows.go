@@ -30,6 +30,10 @@ func (w *windowsTray) run(t *Tray) error {
 		w.inner.SetMenu(menu)
 	}
 
+	if t.onClick != nil {
+		w.inner.OnClick(t.onClick)
+	}
+
 	if t.onDoubleClick != nil {
 		w.inner.OnDoubleClick(t.onDoubleClick)
 	}

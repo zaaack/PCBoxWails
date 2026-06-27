@@ -231,7 +231,11 @@ func resolveProxyURL(rawURL string) string {
 		return rawURL
 	}
 	if original := parsed.Query().Get("u"); original != "" {
-		log.Printf("[Cache] Resolved proxy URL to original: %s", original[:80])
+		origPreview := original
+		if len(origPreview) > 80 {
+			origPreview = origPreview[:80]
+		}
+		log.Printf("[Cache] Resolved proxy URL to original: %s", origPreview)
 		return original
 	}
 	return rawURL
@@ -311,7 +315,11 @@ func (dm *DownloadManager) DownloadVideo(rawURL string, headers map[string]strin
 }
 
 func (dm *DownloadManager) executeDownload(id string, rawURL string, headersJSON string, videoName string, emitProgress func(string, DownloadProgress)) {
-	log.Printf("[Cache] executeDownload: START for %s (id=%s, isHLS=%v, url=%s)", videoName, id, isHLSURL(rawURL), rawURL[:80])
+	urlPreview := rawURL
+	if len(urlPreview) > 80 {
+		urlPreview = urlPreview[:80]
+	}
+	log.Printf("[Cache] executeDownload: START for %s (id=%s, isHLS=%v, url=%s)", videoName, id, isHLSURL(rawURL), urlPreview)
 
 	var headers map[string]string
 	if headersJSON != "" {

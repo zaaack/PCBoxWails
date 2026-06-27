@@ -12,6 +12,7 @@ type Tray struct {
 	icon          []byte
 	tooltip       string
 	menu          *Menu
+	onClick       func()
 	onDoubleClick func()
 	impl          platformTray
 }
@@ -40,6 +41,10 @@ func (t *Tray) SetTooltip(text string) {
 
 func (t *Tray) SetMenu(menu *Menu) {
 	t.menu = menu
+}
+
+func (t *Tray) OnClick(fn func()) {
+	t.onClick = fn
 }
 
 func (t *Tray) OnDoubleClick(fn func()) {

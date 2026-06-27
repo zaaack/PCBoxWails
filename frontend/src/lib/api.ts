@@ -209,6 +209,14 @@ export const api = {
 
   removeAllListeners: (_channel: string) => {},
 
+  minimizeWindow: () => {
+    try {
+      runtime.WindowMinimise();
+    } catch (e) {
+      console.warn('[Wails] minimizeWindow error:', e);
+    }
+  },
+
   openDevTools: () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F12', code: 'F12' }));
   },

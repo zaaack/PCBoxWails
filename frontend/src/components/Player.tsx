@@ -5,7 +5,7 @@ import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import 'videojs-hotkeys';
 import Player from 'video.js/dist/types/player';
-import { FiArrowLeft, FiList, FiMaximize, FiMonitor, FiMapPin, FiSkipBack, FiSkipForward } from 'react-icons/fi';
+import { FiArrowLeft, FiList, FiMaximize, FiMinus, FiMapPin, FiSkipBack, FiSkipForward } from 'react-icons/fi';
 import { MdOutlinePlayDisabled } from 'react-icons/md';
 
 const formatSystemTime = (date: Date) => {
@@ -41,11 +41,21 @@ export const PlayerView: React.FC = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [progressConflict, setProgressConflict] = useState<{ tvk: number; local: number } | null>(null);
   const [systemTime, setSystemTime] = useState(() => formatSystemTime(new Date()));
+  const systemTimeRef = useRef<ReturnType<typeof setInterval>>();
   const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const progressSaveRef = useRef<ReturnType<typeof setInterval>>();
   const cacheProgressRef = useRef<ReturnType<typeof setInterval>>();
   const isPausedRef = useRef(isPaused);
   isPausedRef.current = isPaused;
+
+  useEffect(() => {
+    systemTimeRef.current = setInterval(() => {
+      setSystemTime(formatSystemTime(new Date()));
+    }, 60000);
+    return () => {
+      if (systemTimeRef.current) clearInterval(systemTimeRef.current);
+    };
+  }, []);
 
   const resetHideTimer = useCallback(() => {
     setShowOverlay(true);
@@ -347,14 +357,8 @@ export const PlayerView: React.FC = () => {
     }
   };
 
-  const toggleWindowFullscreen = async () => {
-    if (!isSystemFullscreen) {
-      const result = await api.toggleFullscreen(true);
-      setIsSystemFullscreen(result);
-    } else {
-      await api.toggleFullscreen(false);
-      setIsSystemFullscreen(false);
-    }
+  const handleMinimize = async () => {
+    await api.minimizeWindow();
   };
 
   const toggleAlwaysOnTop = async () => {
@@ -386,12 +390,10 @@ export const PlayerView: React.FC = () => {
         if (e.ctrlKey) {
           e.preventDefault();
           toggleSystemFullscreen();
-        } else if (!e.altKey) {
-          toggleWindowFullscreen();
         }
       } else if (e.key === 'F11') {
         e.preventDefault();
-        toggleWindowFullscreen();
+        toggleSystemFullscreen();
       } else if (e.key === 'e' || e.key === 'E') {
         setShowEpisodePanel((p) => !p);
       } else if (e.key === 't' || e.key === 'T') {
@@ -529,17 +531,17 @@ export const PlayerView: React.FC = () => {
           </button>
           <button
             className="overlay-btn"
-            onClick={toggleWindowFullscreen}
-            title="Window Fullscreen (F)"
+            onClick={handleMinimize}
+            title="Minimize"
           >
-            <FiMaximize size={18} />
+            <FiMinus size={18} />
           </button>
           <button
             className="overlay-btn"
             onClick={toggleSystemFullscreen}
-            title="System Fullscreen (Ctrl+F)"
+            title="Fullscreen (F11 / Ctrl+F)"
           >
-            <FiMonitor size={18} />
+            <FiMaximize size={18} />
           </button>
         </div>
       </div>

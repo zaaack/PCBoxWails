@@ -38,6 +38,9 @@ func (a *WindowApp) bridgeEvents() {
 	a.ipcClient.OnEvent("download-progress", func(data interface{}) {
 		runtime.EventsEmit(a.ctx, "download-progress", data)
 	})
+	a.ipcClient.OnEvent("show-window", func(data interface{}) {
+		bringWindowToFront()
+	})
 }
 
 func (a *WindowApp) StartWsServer(port int) bool {

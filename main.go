@@ -141,7 +141,7 @@ func runServer(ipcPort int) {
 		os.Exit(0)
 	})
 	t.SetMenu(menu)
-	t.OnDoubleClick(func() { showWindow(srv) })
+	t.OnClick(func() { showWindow(srv) })
 
 	t.Show()
 	
@@ -193,7 +193,8 @@ func runWindow(ipcPort int) {
 
 func showWindow(srv *ServerApp) {
 	if srv.windowCmd != nil && srv.windowCmd.Process != nil {
-		log.Println("[Server] Window already running")
+		log.Println("[Server] Window already running, bringing to front")
+		srv.ipcServer.EmitEvent("show-window", nil)
 		return
 	}
 
