@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"log"
+	"time"
+	"unsafe"
 
 	"PcBoxWails/internal/ipc"
 
@@ -273,6 +275,40 @@ func (a *WindowApp) GetCacheStats() map[string]interface{} {
 		return map[string]interface{}{"total": 0, "totalSize": 0, "pending": 0}
 	}
 	return toMap(result)
+}
+
+type POINT struct{ X, Y int32 }
+
+var keepAwakeStop chan struct{}
+
+func (a *WindowApp) SetKeepScreenOn(active bool) {
+	if active {
+		if keepAwakeStop != nil {
+			return
+		}
+		keepAwakeStop = make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(2 * time.Minute)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					var pos POINT
+					procGetCursorPos.Call(uintptr(unsafe.Pointer(&pos)))
+					procSetCursorPos.Call(uintptr(pos.X+100), uintptr(pos.Y))
+					time.Sleep(50 * time.Millisecond)
+					procSetCursorPos.Call(uintptr(pos.X), uintptr(pos.Y))
+				case <-keepAwakeStop:
+					return
+				}
+			}
+		}()
+	} else {
+		if keepAwakeStop != nil {
+			close(keepAwakeStop)
+			keepAwakeStop = nil
+		}
+	}
 }
 
 func toBool(v interface{}) bool {

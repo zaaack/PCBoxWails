@@ -21,6 +21,10 @@ rem wails build  -debug
 
 endlocal
 
+echo [3/3] Killing old process and starting...
+taskkill /F /IM pcbox.exe >nul 2>&1
+timeout /t 1 /nobreak >nul
+start "" "build\bin\pcbox.exe"
 
 echo Done! Binary at build\bin\pcbox.exe
 echo Usage:

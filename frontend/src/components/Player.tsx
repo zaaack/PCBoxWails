@@ -5,7 +5,7 @@ import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import 'videojs-hotkeys';
 import Player from 'video.js/dist/types/player';
-import { FiArrowLeft, FiList, FiMaximize, FiMinus, FiMapPin, FiSkipBack, FiSkipForward } from 'react-icons/fi';
+import { FiArrowLeft, FiList, FiMaximize, FiMinus, FiMapPin, FiSkipBack, FiSkipForward, FiCamera, FiX } from 'react-icons/fi';
 import { MdOutlinePlayDisabled } from 'react-icons/md';
 
 const formatSystemTime = (date: Date) => {
@@ -40,6 +40,7 @@ export const PlayerView: React.FC = () => {
   const [showOverlay, setShowOverlay] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const [progressConflict, setProgressConflict] = useState<{ tvk: number; local: number } | null>(null);
+  const [isScreenCaptureMode, setIsScreenCaptureMode] = useState(false);
   const [systemTime, setSystemTime] = useState(() => formatSystemTime(new Date()));
   const systemTimeRef = useRef<ReturnType<typeof setInterval>>();
   const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -175,12 +176,14 @@ export const PlayerView: React.FC = () => {
     player.on('play', () => {
       setIsPaused(false);
       resetHideTimer();
+      api.setKeepScreenOn(true);
     });
 
     player.on('pause', () => {
       setIsPaused(true);
       setShowOverlay(true);
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      api.setKeepScreenOn(false);
     });
 
     player.on('error', () => {
@@ -192,6 +195,7 @@ export const PlayerView: React.FC = () => {
     });
 
     return () => {
+      api.setKeepScreenOn(false);
       if (playerRef.current) {
         playerRef.current.dispose();
         playerRef.current = null;
@@ -400,11 +404,15 @@ export const PlayerView: React.FC = () => {
         if (!e.ctrlKey && !e.altKey) {
           toggleAlwaysOnTop();
         }
+      } else if (e.key === 'c' || e.key === 'C') {
+        if (!e.ctrlKey && !e.altKey) {
+          setIsScreenCaptureMode((p) => !p);
+        }
       }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showEpisodePanel, isSystemFullscreen]);
+  }, [showEpisodePanel, isSystemFullscreen, isScreenCaptureMode]);
 
   useEffect(() => {
     const container = videoContainerRef.current;
@@ -471,19 +479,29 @@ export const PlayerView: React.FC = () => {
 
   return (
     <div
-      className={`player-page ${isFs ? 'is-fullscreen' : ''} ${showOverlay ? '' : 'hide-cursor'}`}
+      className={`player-page ${isFs ? 'is-fullscreen' : ''} ${showOverlay || isScreenCaptureMode ? '' : 'hide-cursor'} ${isScreenCaptureMode ? 'screen-capture-mode' : ''}`}
       onMouseMove={handleMouseMove}
     >
       <div className="video-container">
         <div ref={videoContainerRef} className="video-js-wrapper" />
       </div>
 
-      {showPlayerTime && (
+      {isScreenCaptureMode && (
+        <div className="screen-capture-exit-bar">
+          <button className="screen-capture-exit-btn" onClick={() => setIsScreenCaptureMode(false)}>
+            <FiX size={16} />
+            <span>Exit Screenshot Mode</span>
+          </button>
+        </div>
+      )}
+
+      {showPlayerTime && !isScreenCaptureMode && (
         <div className="player-system-time">
           {systemTime}
         </div>
       )}
 
+      {!isScreenCaptureMode && (
       <div
         className={`player-overlay ${showOverlay || showEpisodePanel ? 'visible' : ''}`}
         onMouseMove={resetHideTimer}
@@ -517,6 +535,13 @@ export const PlayerView: React.FC = () => {
           </button>
           <button
             className="overlay-btn"
+            onClick={() => setIsScreenCaptureMode(true)}
+            title="Screenshot Mode (C)"
+          >
+            <FiCamera size={18} />
+          </button>
+          <button
+            className="overlay-btn"
             onClick={() => setShowEpisodePanel(!showEpisodePanel)}
             title="Episodes (E)"
           >
@@ -545,8 +570,9 @@ export const PlayerView: React.FC = () => {
           </button>
         </div>
       </div>
+      )}
 
-      {showEpisodePanel && (
+      {!isScreenCaptureMode && showEpisodePanel && (
         <div className="episode-overlay" onClick={() => setShowEpisodePanel(false)}>
           <div className="episode-panel" onClick={(e) => e.stopPropagation()}>
             <div className="episode-panel-header">

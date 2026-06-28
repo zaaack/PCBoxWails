@@ -86,6 +86,10 @@ export function SetCacheDir(arg1) {
   return window['go']['main']['WindowApp']['SetCacheDir'](arg1);
 }
 
+export function SetKeepScreenOn(arg1) {
+  return window['go']['main']['WindowApp']['SetKeepScreenOn'](arg1);
+}
+
 export function StartWsServer(arg1) {
   return window['go']['main']['WindowApp']['StartWsServer'](arg1);
 }

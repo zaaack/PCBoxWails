@@ -9,11 +9,14 @@ import (
 )
 
 var (
-	user32           = syscall.NewLazyDLL("user32.dll")
-	procFindWindow   = user32.NewProc("FindWindowW")
-	procSetForeground = user32.NewProc("SetForegroundWindow")
-	procShowWindow    = user32.NewProc("ShowWindow")
-	procIsIconic      = user32.NewProc("IsIconic")
+	kernel32               = syscall.NewLazyDLL("kernel32.dll")
+	user32                 = syscall.NewLazyDLL("user32.dll")
+	procFindWindow         = user32.NewProc("FindWindowW")
+	procSetForeground      = user32.NewProc("SetForegroundWindow")
+	procShowWindow         = user32.NewProc("ShowWindow")
+	procIsIconic           = user32.NewProc("IsIconic")
+	procGetCursorPos       = user32.NewProc("GetCursorPos")
+	procSetCursorPos       = user32.NewProc("SetCursorPos")
 )
 
 const swRestore = 9

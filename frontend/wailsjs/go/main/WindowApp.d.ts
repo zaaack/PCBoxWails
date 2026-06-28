@@ -43,6 +43,8 @@ export function SendMessage(arg1:string,arg2:number,arg3:any):Promise<boolean>;
 
 export function SetCacheDir(arg1:string):Promise<boolean>;
 
+export function SetKeepScreenOn(arg1:boolean):Promise<void>;
+
 export function StartWsServer(arg1:number):Promise<boolean>;
 
 export function StopWsServer():Promise<boolean>;

@@ -75,6 +75,7 @@ declare global {
           DeleteCacheByID(id: number): Promise<boolean>;
           DeleteCacheBatch(ids: number[]): Promise<number>;
           GetCacheStats(): Promise<CacheStats>;
+          SetKeepScreenOn(active: boolean): Promise<void>;
         };
       };
     };
@@ -141,6 +142,7 @@ export const api = {
   deleteCacheById: (id: number) => window.go.main.App.DeleteCacheByID(id),
   deleteCacheBatch: (ids: number[]) => window.go.main.App.DeleteCacheBatch(ids),
   getCacheStats: () => window.go.main.App.GetCacheStats(),
+  setKeepScreenOn: (active: boolean) => window.go.main.App.SetKeepScreenOn(active),
 
   onClientConnected: (callback: ClientConnectedCallback) => {
     clientConnectedListeners.push(callback);
