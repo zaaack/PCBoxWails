@@ -45,4 +45,6 @@ require (
 	golang.org/x/text v0.22.0 // indirect
 )
 
+replace github.com/wailsapp/go-webview2 => github.com/wailsapp/go-webview2 v1.0.10
+
 // replace github.com/wailsapp/wails/v2 v2.12.0 => C:\Users\admin\go\pkg\mod
