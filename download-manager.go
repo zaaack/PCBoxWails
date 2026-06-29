@@ -54,11 +54,7 @@ func NewDownloadManager() *DownloadManager {
 }
 
 func (dm *DownloadManager) defaultCacheDir() string {
-	exe, err := os.Executable()
-	if err != nil {
-		return filepath.Join(".", "cache")
-	}
-	return filepath.Join(filepath.Dir(exe), "cache")
+	return filepath.Join(".", "PCBoxCache")
 }
 
 func (dm *DownloadManager) SetCacheDir(dir string) {

@@ -104,13 +104,13 @@ func runServer(ipcPort int) {
 // 		defer logFile.Close()
 // 	}
 
-	srv := &ServerApp{}
 	
-	if envBuild := os.Getenv("PCBOX_BUILD"); envBuild != "" {
+	if envBuild := os.Getenv("PCBOX_BUILD"); envBuild == "1" {
     		runWindow(ipcPort)
     		return
 	}
 	
+	srv := &ServerApp{}
 	srv.startup()
 	defer srv.shutdown()
 
