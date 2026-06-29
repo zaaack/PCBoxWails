@@ -639,9 +639,7 @@ func (dm *DownloadManager) rewriteM3U8ToLocal(content string, hlsDir string) str
 			continue
 		}
 
-		segFile := filepath.Join(hlsDir, fmt.Sprintf("seg_%05d.ts", segIndex))
-		segFile = strings.ReplaceAll(segFile, "\\", "/")
-		result = append(result, segFile)
+		result = append(result, fmt.Sprintf("seg_%05d.ts", segIndex))
 		segIndex++
 	}
 
