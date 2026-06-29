@@ -9,5 +9,11 @@
   "author": {
     "name": "zaaack",
     "email": "zaaack@qq.com"
+  },
+  
+  "windows": {
+    "icon": "./build/windows/icon.ico", 
+    "singleInstance": true,
+    "disableWindowIcon": false
   }
 }

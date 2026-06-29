@@ -89,8 +89,8 @@ export const PlayerView: React.FC = () => {
       playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
       controlBar: {
         volumePanel: { inline: false },
-        pictureInPictureToggle: true,
-        fullscreenToggle: false,
+        pictureInPictureToggle: false,
+        fullscreenToggle: true,
       },
       sources: [{ src: playUrl, type: isHls ? 'application/x-mpegURL' : 'video/mp4' }],
       html5: {
@@ -125,6 +125,14 @@ export const PlayerView: React.FC = () => {
     player.on('volumechange', () => {
       localStorage.setItem('player-volume', String(player.volume()));
     });
+
+    const fsButton = (player as any).controlBar.fullscreenToggle;
+    if (fsButton) {
+      fsButton.off('click');
+      fsButton.on('click', () => {
+        toggleSystemFullscreen();
+      });
+    }
 
     if (currentPlayFlag === 'cache' && currentEpisode) {
       const tvkProgress =

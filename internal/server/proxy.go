@@ -127,7 +127,7 @@ func (p *ProxyServer) Start(port int) error {
 
 func tryListen(port int) (net.Listener, error) {
 	for i := 0; i < 100; i++ {
-		addr := fmt.Sprintf("127.0.0.1:%d", port+i)
+		addr := fmt.Sprintf("0.0.0.0:%d", port+i)
 		listener, err := net.Listen("tcp", addr)
 		if err == nil {
 			if i > 0 {
