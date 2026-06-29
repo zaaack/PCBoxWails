@@ -105,7 +105,7 @@ func (p *ProxyServer) handleLocal(w http.ResponseWriter, r *http.Request) {
 				resolved = trimmed
 			} else if len(trimmed) >= 2 && trimmed[1] == ':' {
 				resolved = trimmed
-			} else if strings.HasPrefix(trimmed, "./") || strings.HasPrefix(trimmed, ".\\") {
+			} else if strings.Contains(trimmed, "/") || strings.Contains(trimmed, "\\") {
 				resolved = trimmed
 			} else {
 				resolved = dir + trimmed
