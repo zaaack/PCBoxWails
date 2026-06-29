@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 const defaultUA2 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
@@ -285,6 +286,10 @@ func (dm *DownloadManager) ResumePendingDownloads(emitProgress func(string, Down
 }
 
 func (dm *DownloadManager) DownloadVideo(rawURL string, headers map[string]string, videoName string, emitProgress func(string, DownloadProgress)) string {
+	return dm.DownloadVideoWithMeta(rawURL, headers, videoName, "", "", -1, "", "", emitProgress)
+}
+
+func (dm *DownloadManager) DownloadVideoWithMeta(rawURL string, headers map[string]string, videoName string, sourceKey string, playFlag string, episodeIndex int, vodId string, vodPic string, emitProgress func(string, DownloadProgress)) string {
 	id := urlHash(rawURL)
 
 	dm.downloadsMu.Lock()
@@ -296,12 +301,17 @@ func (dm *DownloadManager) DownloadVideo(rawURL string, headers map[string]strin
 
 	headersJSON, _ := json.Marshal(headers)
 	record := &DownloadRecord{
-		URLHash:   id,
-		URL:       rawURL,
-		Headers:   string(headersJSON),
-		VideoName: videoName,
-		Status:    "pending",
-		Progress:  0,
+		URLHash:      id,
+		URL:          rawURL,
+		Headers:      string(headersJSON),
+		VideoName:    videoName,
+		SourceKey:    sourceKey,
+		PlayFlag:     playFlag,
+		EpisodeIndex: episodeIndex,
+		VodId:        vodId,
+		VodPic:       vodPic,
+		Status:       "pending",
+		Progress:     0,
 	}
 	dm.cacheDB.db.Create(record)
 
@@ -642,6 +652,98 @@ func (dm *DownloadManager) rewriteM3U8ToLocal(content string, hlsDir string) str
 	return strings.Join(result, "\n")
 }
 
+type PlayHistoryEntry struct {
+	SourceKey    string `json:"sourceKey,omitempty"`
+	VodId        string `json:"vodId,omitempty"`
+	VodName      string `json:"vodName"`
+	VodPic       string `json:"vodPic,omitempty"`
+	PlayFlag     string `json:"playFlag"`
+	EpisodeFlag  string `json:"episodeFlag"`
+	EpisodeUrl   string `json:"episodeUrl"`
+	EpisodeIndex int    `json:"episodeIndex"`
+	ReverseSort  bool   `json:"reverseSort"`
+	Progress     int    `json:"progress"`
+	Duration     int    `json:"duration"`
+	UpdatedAt    int64  `json:"updatedAt"`
+}
+
+func (dm *DownloadManager) historyFilePath() string {
+	return filepath.Join(dm.cacheDir, "play_history.json")
+}
+
+func (dm *DownloadManager) loadAllHistory() []*PlayHistoryEntry {
+	path := dm.historyFilePath()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var entries []*PlayHistoryEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return nil
+	}
+	return entries
+}
+
+func (dm *DownloadManager) saveAllHistory(entries []*PlayHistoryEntry) {
+	path := dm.historyFilePath()
+	data, _ := json.MarshalIndent(entries, "", "  ")
+	os.WriteFile(path, data, 0644)
+}
+
+func (dm *DownloadManager) SavePlayHistory(entry PlayHistoryEntry) {
+	entries := dm.loadAllHistory()
+	// Replace existing entry for same episodeUrl, or append
+	found := false
+	for i, e := range entries {
+		if e.EpisodeUrl == entry.EpisodeUrl {
+			entries[i] = &entry
+			found = true
+			break
+		}
+	}
+	if !found {
+		entries = append(entries, &entry)
+	}
+	// Keep only last 200 entries
+	if len(entries) > 200 {
+		entries = entries[len(entries)-200:]
+	}
+	dm.saveAllHistory(entries)
+}
+
+func (dm *DownloadManager) GetPlayHistory() []*PlayHistoryEntry {
+	entries := dm.loadAllHistory()
+	if entries == nil {
+		return []*PlayHistoryEntry{}
+	}
+	return entries
+}
+
+func (dm *DownloadManager) FindDownloadRecordByFilePath(filePath string) *DownloadRecord {
+	var record DownloadRecord
+	result := dm.cacheDB.db.Where("file_path = ?", filePath).First(&record)
+	if result.Error != nil {
+		return nil
+	}
+	return &record
+}
+
+func (dm *DownloadManager) FindNextCachedEpisode(sourceKey string, playFlag string, episodeIndex int) *DownloadRecord {
+	if sourceKey == "" || playFlag == "" {
+		return nil
+	}
+	var record DownloadRecord
+	result := dm.cacheDB.db.Where("source_key = ? AND play_flag = ? AND episode_index = ? AND status = ?",
+		sourceKey, playFlag, episodeIndex, "completed").First(&record)
+	if result.Error != nil {
+		return nil
+	}
+	if _, err := os.Stat(record.FilePath); os.IsNotExist(err) {
+		return nil
+	}
+	return &record
+}
+
 func (dm *DownloadManager) updateProgress(id string, progress float64, status string, errMsg string) {
 	dm.downloadsMu.Lock()
 	defer dm.downloadsMu.Unlock()
@@ -663,4 +765,57 @@ func sanitizeFilename(name string) string {
 		result = result[:100]
 	}
 	return result
+}
+
+type CacheProgressEntry struct {
+	FilePath  string    `json:"filePath"`
+	Progress  int       `json:"progress"`
+	Duration  int       `json:"duration"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+func (dm *DownloadManager) progressFilePath() string {
+	return filepath.Join(dm.cacheDir, "cache_progress.json")
+}
+
+func (dm *DownloadManager) loadAllProgress() map[string]*CacheProgressEntry {
+	path := dm.progressFilePath()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return make(map[string]*CacheProgressEntry)
+	}
+	var m map[string]*CacheProgressEntry
+	if err := json.Unmarshal(data, &m); err != nil {
+		return make(map[string]*CacheProgressEntry)
+	}
+	return m
+}
+
+func (dm *DownloadManager) saveAllProgress(m map[string]*CacheProgressEntry) {
+	path := dm.progressFilePath()
+	data, _ := json.MarshalIndent(m, "", "  ")
+	os.WriteFile(path, data, 0644)
+}
+
+func (dm *DownloadManager) SaveCacheProgress(filePath string, progress int, duration int) {
+	m := dm.loadAllProgress()
+	m[filePath] = &CacheProgressEntry{
+		FilePath:  filePath,
+		Progress:  progress,
+		Duration:  duration,
+		UpdatedAt: time.Now(),
+	}
+	dm.saveAllProgress(m)
+}
+
+func (dm *DownloadManager) GetCacheProgress(filePath string) map[string]interface{} {
+	m := dm.loadAllProgress()
+	entry, ok := m[filePath]
+	if !ok {
+		return map[string]interface{}{"progress": 0, "duration": 0}
+	}
+	return map[string]interface{}{
+		"progress": entry.Progress,
+		"duration": entry.Duration,
+	}
 }

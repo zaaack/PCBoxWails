@@ -16,7 +16,7 @@ import {
   TvBoxMovieSort,
   TvBoxVideo,
 } from '../lib/converter';
-import { api, CachedVideo, DownloadProgress, DownloadRecord, PagedResult, CacheStats } from '../lib/api';
+import { api, isWeb, CachedVideo, DownloadProgress, DownloadRecord, PagedResult, CacheStats } from '../lib/api';
 
 export interface CacheTask {
   epKey: string;
@@ -52,6 +52,7 @@ const MessageCodes = {
 const SEARCH_CONFIG_KEY = 'pcbox_search_config';
 const THEME_KEY = 'pcbox_theme';
 const SHOW_PLAYER_TIME_KEY = 'pcbox_show_player_time';
+const SELECTED_LAN_IP_KEY = 'pcbox_selected_lan_ip';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -83,7 +84,7 @@ function loadTheme(): ThemeMode {
       return raw;
     }
   } catch {}
-  return 'dark';
+  return 'system';
 }
 
 function saveTheme(theme: ThemeMode): void {
@@ -105,6 +106,22 @@ function loadShowPlayerTime(): boolean {
 function saveShowPlayerTime(show: boolean): void {
   try {
     localStorage.setItem(SHOW_PLAYER_TIME_KEY, String(show));
+  } catch {}
+}
+
+function loadSelectedLanIp(): string {
+  try {
+    const raw = localStorage.getItem(SELECTED_LAN_IP_KEY);
+    if (raw !== null) {
+      return raw;
+    }
+  } catch {}
+  return '';
+}
+
+function saveSelectedLanIp(ip: string): void {
+  try {
+    localStorage.setItem(SELECTED_LAN_IP_KEY, ip);
   } catch {}
 }
 
@@ -156,13 +173,9 @@ function sendTopicMessage(
   callback: (data: any) => void
 ): void {
   const topicId = generateTopicId();
-
-  useStore.getState().addTopicCallback(topicId, callback);
-
   const client = useStore.getState().connectedClient;
   if (!client) return;
-
-  api.sendMessage(client.id, code, { ...data, topicId });
+  api.sendTopicMessage(client.id, code, { ...data, topicId }, topicId, callback);
 }
 
 interface AppState {
@@ -187,6 +200,11 @@ interface AppState {
 
   showPlayerTime: boolean;
   setShowPlayerTime: (show: boolean) => void;
+
+  lanIps: string[];
+  setLanIps: (ips: string[]) => void;
+  selectedLanIp: string;
+  setSelectedLanIp: (ip: string) => void;
 
   sources: SourceBean[];
   setSources: (sources: SourceBean[]) => void;
@@ -254,6 +272,7 @@ interface AppState {
   cachedVideos: CachedVideo[];
   loadCachedFiles: () => void;
   downloadVideo: (url: string, headers: Record<string, string>, videoName: string) => Promise<string>;
+  downloadVideoWithMeta: (url: string, headers: Record<string, string>, videoName: string, sourceKey?: string, playFlag?: string, episodeIndex?: number, vodId?: string, vodPic?: string) => Promise<string>;
   getCachedFile: (url: string) => Promise<string>;
   deleteCachedFile: (url: string) => Promise<boolean>;
 
@@ -301,6 +320,9 @@ interface AppState {
   search: (keyword: string) => void;
   loadHistory: () => void;
   saveHistory: (history: Omit<VodInfo, 'timestamp'>) => void;
+
+  proxyPort: number;
+  setProxyPort: (port: number) => void;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -325,6 +347,9 @@ export const useStore = create<AppState>((set, get) => ({
   connectedClient: null,
   setConnectedClient: (client) => set({ connectedClient: client }),
 
+  proxyPort: 0,
+  setProxyPort: (port) => set({ proxyPort: port }),
+
   menuBarVisible: true,
   setMenuBarVisible: (visible) => {
     api.setMenuBarVisibility(visible);
@@ -335,6 +360,15 @@ export const useStore = create<AppState>((set, get) => ({
   setShowPlayerTime: (show) => {
     saveShowPlayerTime(show);
     set({ showPlayerTime: show });
+  },
+
+  lanIps: [],
+  setLanIps: (ips) => set({ lanIps: ips }),
+  selectedLanIp: loadSelectedLanIp(),
+  setSelectedLanIp: (ip) => {
+    saveSelectedLanIp(ip);
+    set({ selectedLanIp: ip });
+    api.setSelectedLanIp(ip);
   },
 
   sources: [],
@@ -472,6 +506,15 @@ export const useStore = create<AppState>((set, get) => ({
       return id;
     } catch (e) {
       console.warn('[PCBox] Failed to start download:', e);
+      return '';
+    }
+  },
+  downloadVideoWithMeta: async (url, headers, videoName, sourceKey, playFlag, episodeIndex = -1, vodId, vodPic) => {
+    try {
+      const id = await api.downloadVideoWithMeta(url, headers, videoName, sourceKey || '', playFlag || '', episodeIndex, vodId || '', vodPic || '');
+      return id;
+    } catch (e) {
+      console.warn('[PCBox] Failed to start download with meta:', e);
       return '';
     }
   },
@@ -788,7 +831,7 @@ export const useStore = create<AppState>((set, get) => ({
             const parsedUrl = await tryParseUrl(videoUrl);
             if (parsedUrl) {
               console.log('[PCBox] URL parsed successfully:', parsedUrl.substring(0, 100));
-              if (Object.keys(headers).length > 0) {
+              if (Object.keys(headers).length > 0 || isWeb) {
                 try {
                   const proxyUrl = await api.createProxySession(parsedUrl, headers);
                   if (proxyUrl) {
@@ -808,7 +851,7 @@ export const useStore = create<AppState>((set, get) => ({
             return;
           }
 
-          if (Object.keys(headers).length > 0) {
+          if (Object.keys(headers).length > 0 || isWeb) {
             try {
               const proxyUrl = await api.createProxySession(videoUrl, headers);
               if (proxyUrl) {

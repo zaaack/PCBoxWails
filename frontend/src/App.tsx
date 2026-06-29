@@ -16,6 +16,9 @@ const App: React.FC = () => {
     viewMode,
     setWsStatus,
     setLocalIp,
+    setLanIps,
+    setSelectedLanIp,
+    selectedLanIp,
     setConnectedClient,
     setSources,
     setCurrentSource,
@@ -33,6 +36,8 @@ const App: React.FC = () => {
   } = useStore();
 
   const [showSettings, setShowSettings] = useState(false);
+
+  const { setProxyPort } = useStore();
 
   useEffect(() => {
     initApp();
@@ -53,6 +58,26 @@ const App: React.FC = () => {
   const initApp = async () => {
     const ip = await api.getLocalIp();
     if (ip) setLocalIp(ip);
+
+    try {
+      const ips = await api.getLocalIps();
+      if (ips && ips.length > 0) {
+        setLanIps(ips);
+        if (!selectedLanIp || !ips.includes(selectedLanIp)) {
+          const pref = ips.find((i: string) => i.startsWith('192.')) || ips[0];
+          setSelectedLanIp(pref);
+        }
+      }
+    } catch (e) {
+      console.warn('[PCBox] getLocalIps failed:', e);
+    }
+
+    try {
+      const proxyPort = await api.getProxyPort();
+      if (proxyPort > 0) setProxyPort(proxyPort);
+    } catch (e) {
+      console.warn('[PCBox] getProxyPort failed:', e);
+    }
 
     try {
       console.log('[PCBox] Querying server status...');

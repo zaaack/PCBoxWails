@@ -133,28 +133,30 @@ export const PlayerView: React.FC = () => {
           ? historyHighlightEpisode.progress
           : 0;
 
-      const key = `cache-progress-${currentEpisode.url}`;
-      let localProgress = 0;
-      try {
-        const saved = localStorage.getItem(key);
-        if (saved) {
-          localProgress = JSON.parse(saved).progress || 0;
-        }
-      } catch {}
+      const filePath = currentEpisode.url;
+      (async () => {
+        let localProgress = 0;
+        try {
+          const saved = await api.getCacheProgress(filePath);
+          if (saved) {
+            localProgress = saved.progress || 0;
+          }
+        } catch {}
 
-      const hasBoth = tvkProgress > 0 && localProgress > 0 && Math.abs(tvkProgress - localProgress) > 5000;
+        const hasBoth = tvkProgress > 0 && localProgress > 0 && Math.abs(tvkProgress - localProgress) > 5000;
 
-      if (hasBoth) {
-        setProgressConflict({ tvk: tvkProgress, local: localProgress });
-      } else {
-        const seekTo = (tvkProgress || localProgress) / 1000;
-        if (seekTo > 0) {
-          player.on('loadedmetadata', () => {
-            player.currentTime(seekTo);
-            console.log('[PCBox] Restored cache progress:', seekTo, 's');
-          });
+        if (hasBoth) {
+          setProgressConflict({ tvk: tvkProgress, local: localProgress });
+        } else {
+          const seekTo = (tvkProgress || localProgress) / 1000;
+          if (seekTo > 0) {
+            player.on('loadedmetadata', () => {
+              player.currentTime(seekTo);
+              console.log('[PCBox] Restored cache progress:', seekTo, 's');
+            });
+          }
         }
-      }
+      })();
     }
 
     (player as any).hotkeys({
@@ -166,10 +168,6 @@ export const PlayerView: React.FC = () => {
     });
 
     player.on('ended', () => {
-      if (currentPlayFlag === 'cache' && currentEpisode) {
-        const key = `cache-progress-${currentEpisode.url}`;
-        localStorage.removeItem(key);
-      }
       playNextEpisode();
     });
 
@@ -226,8 +224,29 @@ export const PlayerView: React.FC = () => {
 
   useEffect(() => {
     progressSaveRef.current = setInterval(() => {
-        console.log('save history', playerRef.current, currentVideo , currentEpisode, )
-      if (playerRef.current && currentVideo && currentEpisode) {
+      if (!playerRef.current || !currentEpisode) return;
+
+      const progress = Math.floor((playerRef.current.currentTime() || 0) * 1000);
+      const duration = Math.floor((playerRef.current.duration() || 0) * 1000);
+
+      // Save to Go backend (works for both cache and non-cache modes)
+      api.savePlayHistory({
+        sourceKey: currentVideo?.sourceKey,
+        vodId: currentVideo?.id,
+        vodName: currentVideo?.name || currentEpisode.name,
+        vodPic: currentVideo?.pic,
+        playFlag: currentPlayFlag,
+        episodeFlag: currentEpisode.name,
+        episodeUrl: currentEpisode.url,
+        episodeIndex: currentEpisodeIndex,
+        reverseSort: false,
+        progress,
+        duration,
+        updatedAt: Date.now(),
+      });
+
+      // Save to mobile client (only when currentVideo is set)
+      if (currentVideo) {
         saveHistory({
           id: currentVideo.id,
           sourceKey: currentVideo.sourceKey,
@@ -238,8 +257,8 @@ export const PlayerView: React.FC = () => {
           episodeUrl: currentEpisode.url,
           episodeIndex: currentEpisodeIndex,
           reverseSort: false,
-          progress: Math.floor((playerRef.current.currentTime() || 0) * 1000),
-          duration: Math.floor((playerRef.current.duration() || 0) * 1000),
+          progress,
+          duration,
         });
       }
     }, 10000);
@@ -259,13 +278,12 @@ export const PlayerView: React.FC = () => {
     if (currentPlayFlag !== 'cache' || !currentEpisode) return;
 
     const filePath = currentEpisode.url;
-    const key = `cache-progress-${filePath}`;
 
     cacheProgressRef.current = setInterval(() => {
       if (playerRef.current) {
         const currentTime = Math.floor((playerRef.current.currentTime() || 0) * 1000);
         const duration = Math.floor((playerRef.current.duration() || 0) * 1000);
-        localStorage.setItem(key, JSON.stringify({ progress: currentTime, duration }));
+        api.saveCacheProgress(filePath, currentTime, duration);
       }
     }, 5000);
 
@@ -276,8 +294,33 @@ export const PlayerView: React.FC = () => {
     };
   }, [currentPlayFlag, currentEpisode]);
 
-  const playNextEpisode = () => {
-    if (!currentVideo || !currentPlayFlag) return;
+  const playNextEpisode = async () => {
+    if (!currentPlayFlag) return;
+
+    // Cache-only mode (from CacheManager, no currentVideo)
+    if (currentPlayFlag === 'cache' && !currentVideo) {
+      if (!currentEpisode) return;
+      const record = await api.findDownloadRecordByFilePath(currentEpisode.url);
+      if (!record || !record.sourceKey || !record.playFlag) return;
+
+      const nextIndex = currentEpisodeIndex + 1;
+      const nextRecord = await api.findNextCachedEpisode(record.sourceKey, record.playFlag, nextIndex);
+      if (nextRecord && nextRecord.filePath) {
+        const port = await api.getProxyPort();
+        const fileUrl = `http://127.0.0.1:${port}/local?u=${encodeURIComponent(nextRecord.filePath)}`;
+        handlePlayEpisode(
+          { name: nextRecord.videoName, url: nextRecord.filePath },
+          nextIndex,
+          'cache',
+          fileUrl
+        );
+        return;
+      }
+      return;
+    }
+
+    // Normal flow with currentVideo (detail page)
+    if (!currentVideo) return;
 
     const playFlags = currentVideo.urlBean?.infoList || [];
     const currentFlag = playFlags.find((f) => f.flag === currentPlayFlag);
@@ -290,8 +333,34 @@ export const PlayerView: React.FC = () => {
     }
   };
 
-  const playPreviousEpisode = () => {
-    if (!currentVideo || !currentPlayFlag) return;
+  const playPreviousEpisode = async () => {
+    if (!currentPlayFlag) return;
+
+    // Cache-only mode
+    if (currentPlayFlag === 'cache' && !currentVideo) {
+      if (!currentEpisode) return;
+      const record = await api.findDownloadRecordByFilePath(currentEpisode.url);
+      if (!record || !record.sourceKey || !record.playFlag) return;
+
+      const prevIndex = currentEpisodeIndex - 1;
+      if (prevIndex < 0) return;
+      const prevRecord = await api.findNextCachedEpisode(record.sourceKey, record.playFlag, prevIndex);
+      if (prevRecord && prevRecord.filePath) {
+        const port = await api.getProxyPort();
+        const fileUrl = `http://127.0.0.1:${port}/local?u=${encodeURIComponent(prevRecord.filePath)}`;
+        handlePlayEpisode(
+          { name: prevRecord.videoName, url: prevRecord.filePath },
+          prevIndex,
+          'cache',
+          fileUrl
+        );
+        return;
+      }
+      return;
+    }
+
+    // Normal flow
+    if (!currentVideo) return;
 
     const playFlags = currentVideo.urlBean?.infoList || [];
     const currentFlag = playFlags.find((f) => f.flag === currentPlayFlag);
@@ -304,7 +373,14 @@ export const PlayerView: React.FC = () => {
     }
   };
 
-  const handlePlayEpisode = async (episode: any, episodeIndex: number, playFlag: string) => {
+  const handlePlayEpisode = async (episode: any, episodeIndex: number, playFlag: string, preResolvedUrl?: string) => {
+    // If we already have a pre-resolved URL (e.g., from cache fallback), play directly
+    if (preResolvedUrl) {
+      setPlayState(episode, episodeIndex, playFlag, preResolvedUrl, {});
+      setPlayError('');
+      return;
+    }
+
     if (!currentVideo || !currentVideo.sourceKey) return;
 
     setPlayState(episode, episodeIndex, playFlag, '');
@@ -521,7 +597,7 @@ export const PlayerView: React.FC = () => {
             className="overlay-btn"
             onClick={playPreviousEpisode}
             title="Previous Episode"
-            disabled={currentEpisodeIndex === 0}
+            disabled={currentEpisodeIndex <= 0 && (!currentVideo || !currentPlayFlag)}
           >
             <FiSkipBack size={18} />
           </button>
@@ -529,7 +605,7 @@ export const PlayerView: React.FC = () => {
             className="overlay-btn"
             onClick={playNextEpisode}
             title="Next Episode"
-            disabled={!currentVideo || !currentPlayFlag || currentEpisodeIndex >= (currentVideo.urlBean?.infoList?.find(f => f.flag === currentPlayFlag)?.beanList.length || 0) - 1}
+            disabled={!currentPlayFlag}
           >
             <FiSkipForward size={18} />
           </button>

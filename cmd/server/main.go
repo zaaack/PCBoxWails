@@ -2,14 +2,13 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"sync"
-	"time"
 
 	"PcBoxWails/internal/ipc"
 	"PcBoxWails/internal/server"
@@ -22,16 +21,27 @@ var (
 	windowCmd *exec.Cmd
 )
 
+const defaultProxyPort = 9897
+
 type ServerApp struct {
-	wsServer    *server.WsServer
-	proxyServer *server.ProxyServer
-	mu          sync.Mutex
+	wsServer      *server.WsServer
+	proxyServer   *server.ProxyServer
+	mu            sync.Mutex
+	selectedLanIp string
 }
 
 func (a *ServerApp) startup() {
+	proxyPort := defaultProxyPort
+	if envPort := os.Getenv("PCBOX_PROXY_PORT"); envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil && p > 0 {
+			proxyPort = p
+		}
+	}
 	a.proxyServer = server.NewProxyServer()
-	a.proxyServer.Start()
-	log.Println("[PCBox] Proxy server started")
+	if err := a.proxyServer.Start(proxyPort); err != nil {
+		log.Printf("[PCBox] Proxy server failed to start: %v", err)
+	}
+	log.Printf("[PCBox] Proxy server started on port %d", a.proxyServer.Port())
 }
 
 func (a *ServerApp) shutdown() {
@@ -91,6 +101,30 @@ func (a *ServerApp) GetLocalIp() string {
 		}
 	}
 	return "127.0.0.1"
+}
+
+func (a *ServerApp) GetLocalIps() []string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	var ips []string
+	for _, addr := range addrs {
+		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
+			if ipNet.IP.To4() != nil {
+				ips = append(ips, ipNet.IP.String())
+			}
+		}
+	}
+	return ips
+}
+
+func (a *ServerApp) GetSelectedLanIp() string {
+	return a.selectedLanIp
+}
+
+func (a *ServerApp) SetSelectedLanIp(ip string) {
+	a.selectedLanIp = ip
 }
 
 func (a *ServerApp) GetClients() []server.ClientInfo {
@@ -160,6 +194,16 @@ func main() {
 
 	menu := tray.NewMenu()
 	menu.Add("显示窗口", func() { showWindow() })
+	menu.Add("打开网页版", func() {
+		port := srv.GetProxyPort()
+		if port > 0 {
+			ip := srv.GetSelectedLanIp()
+			if ip == "" {
+				ip = "127.0.0.1"
+			}
+			exec.Command("rundll32", "url.dll,FileProtocolHandler", "http://"+ip+":"+strconv.Itoa(port)).Start()
+		}
+	})
 	menu.AddSeparator()
 	menu.Add("退出", func() {
 		t.Remove()
@@ -230,6 +274,23 @@ func registerIPCMethods() {
 		return srv.GetLocalIp(), nil
 	})
 
+	ipcSrv.RegisterMethod("GetLocalIps", func(args json.RawMessage) (interface{}, error) {
+		return srv.GetLocalIps(), nil
+	})
+
+	ipcSrv.RegisterMethod("GetSelectedLanIp", func(args json.RawMessage) (interface{}, error) {
+		return srv.GetSelectedLanIp(), nil
+	})
+
+	ipcSrv.RegisterMethod("SetSelectedLanIp", func(args json.RawMessage) (interface{}, error) {
+		var ip string
+		if err := json.Unmarshal(args, &ip); err != nil {
+			return nil, err
+		}
+		srv.SetSelectedLanIp(ip)
+		return true, nil
+	})
+
 	ipcSrv.RegisterMethod("GetClients", func(args json.RawMessage) (interface{}, error) {
 		return srv.GetClients(), nil
 	})
@@ -260,7 +321,4 @@ func registerIPCMethods() {
 	ipcSrv.RegisterMethod("GetProxyPort", func(args json.RawMessage) (interface{}, error) {
 		return srv.GetProxyPort(), nil
 	})
-
-	_ = fmt.Sprintf
-	_ = time.Now
 }

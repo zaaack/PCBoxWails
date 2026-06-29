@@ -11,11 +11,12 @@ interface CacheModalProps {
 
 export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, onClose }) => {
   const {
-    downloadVideo,
+    downloadVideoWithMeta,
     loadPlayerContent,
     cachedVideos,
     loadCachedFiles,
     currentSource,
+    currentVideo,
     cacheTasks,
     setCacheTasks,
     updateCacheTask,
@@ -110,7 +111,14 @@ export const CacheModal: React.FC<CacheModalProps> = ({ videoName, playFlags, on
           continue;
         }
 
-        const downloadId = await downloadVideo(result.url, result.headers || {}, `${videoName} - ${task.episode.name}`);
+        const epIndex = playFlags
+          .flatMap(f => f.beanList)
+          .findIndex(e => e.url === task.episode.url);
+        const downloadId = await downloadVideoWithMeta(
+          result.url, result.headers || {}, `${videoName} - ${task.episode.name}`,
+          source?.key || '', task.playFlag, epIndex,
+          currentVideo?.id || '', currentVideo?.pic || ''
+        );
 
         if (!downloadId) {
           updateCacheTask(task.epKey, { status: 'failed', error: 'Failed to start download' });

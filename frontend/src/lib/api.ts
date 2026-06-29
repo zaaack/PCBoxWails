@@ -1,6 +1,10 @@
-// Wails API wrapper — drop-in replacement for window.electronAPI
 import * as runtime from '../../wailsjs/runtime/runtime';
-;(window as any).go.main.App ??= (window as any).go.main.WindowApp
+
+const w=(window as any);
+if (w.go) {
+    w.go.main.App ??= (window as any).go.main.WindowApp
+}
+export const isWeb = !(window as any).go?.main?.App;
 
 export interface CachedVideo {
   id: string;
@@ -47,6 +51,21 @@ export interface CacheStats {
   pending: number;
 }
 
+export interface PlayHistoryEntry {
+  sourceKey?: string;
+  vodId?: string;
+  vodName: string;
+  vodPic?: string;
+  playFlag: string;
+  episodeFlag: string;
+  episodeUrl: string;
+  episodeIndex: number;
+  reverseSort: boolean;
+  progress: number;
+  duration: number;
+  updatedAt: number;
+}
+
 declare global {
   interface Window {
     go: {
@@ -76,6 +95,16 @@ declare global {
           DeleteCacheBatch(ids: number[]): Promise<number>;
           GetCacheStats(): Promise<CacheStats>;
           SetKeepScreenOn(active: boolean): Promise<void>;
+          SaveCacheProgress(filePath: string, progress: number, duration: number): Promise<boolean>;
+          GetCacheProgress(filePath: string): Promise<{ progress: number; duration: number }>;
+          DownloadVideoWithMeta(url: string, headers: Record<string, string>, videoName: string, sourceKey: string, playFlag: string, episodeIndex: number, vodId: string, vodPic: string): Promise<string>;
+          SavePlayHistory(entry: PlayHistoryEntry): Promise<boolean>;
+          GetPlayHistory(): Promise<PlayHistoryEntry[]>;
+          FindNextCachedEpisode(sourceKey: string, playFlag: string, episodeIndex: number): Promise<DownloadRecord | null>;
+          FindDownloadRecordByFilePath(filePath: string): Promise<DownloadRecord | null>;
+          GetLocalIps(): Promise<string[]>;
+          GetSelectedLanIp(): Promise<string>;
+          SetSelectedLanIp(ip: string): Promise<boolean>;
         };
       };
     };
@@ -92,57 +121,213 @@ const clientDisconnectedListeners: ClientDisconnectedCallback[] = [];
 const wsResponseListeners: WsResponseCallback[] = [];
 const downloadProgressListeners: DownloadProgressCallback[] = [];
 
-runtime.EventsOn('client-connected', (...data: any[]) => {
-  const client = data[0];
-  clientConnectedListeners.forEach((cb) => cb(client));
-});
+if (!isWeb) {
+  try {
+    runtime.EventsOn('client-connected', (...data: any[]) => {
+      const client = data[0];
+      clientConnectedListeners.forEach((cb) => cb(client));
+    });
 
-runtime.EventsOn('client-disconnected', () => {
-  clientDisconnectedListeners.forEach((cb) => cb());
-});
+    runtime.EventsOn('client-disconnected', () => {
+      clientDisconnectedListeners.forEach((cb) => cb());
+    });
 
-runtime.EventsOn('ws-response', (...data: any[]) => {
-  const response = data[0];
-  wsResponseListeners.forEach((cb) => cb(response));
-});
+    runtime.EventsOn('ws-response', (...data: any[]) => {
+      const response = data[0];
+      wsResponseListeners.forEach((cb) => cb(response));
+    });
 
-runtime.EventsOn('download-progress', (...data: any[]) => {
-  const progress = data[0] as DownloadProgress;
-  downloadProgressListeners.forEach((cb) => cb(progress));
-});
+    runtime.EventsOn('download-progress', (...data: any[]) => {
+      const progress = data[0] as DownloadProgress;
+      downloadProgressListeners.forEach((cb) => cb(progress));
+    });
+  } catch (e) {
+    console.warn('[PCBox] Wails runtime events unavailable:', e);
+  }
+} else {
+  const es = new EventSource('/api/events');
+  es.addEventListener('client-connected', (e) => {
+    try {
+      const client = JSON.parse(e.data);
+      clientConnectedListeners.forEach((cb) => cb(client));
+    } catch { }
+  });
+  es.addEventListener('client-disconnected', () => {
+    clientDisconnectedListeners.forEach((cb) => cb());
+  });
+  es.addEventListener('ws-response', (e) => {
+    try {
+      const response = JSON.parse(e.data);
+      wsResponseListeners.forEach((cb) => cb(response));
+    } catch { }
+  });
+  es.addEventListener('download-progress', (e) => {
+    try {
+      const progress = JSON.parse(e.data) as DownloadProgress;
+      downloadProgressListeners.forEach((cb) => cb(progress));
+    } catch { }
+  });
+}
+
+async function httpPost(method: string, body?: any): Promise<any> {
+  const res = await fetch(`/api/${method}`, {
+    method: body !== undefined ? 'POST' : 'GET',
+    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${method}`);
+  const text = await res.text();
+  if (!text) return null;
+  return JSON.parse(text);
+}
+
+const httpAPI = {
+  startWsServer: (port: number) => httpPost('StartWsServer', [port]),
+  stopWsServer: () => httpPost('StopWsServer'),
+  getWsServerStatus: () => httpPost('GetWsServerStatus'),
+  getLocalIp: () => httpPost('GetLocalIp'),
+  getClients: () => httpPost('GetClients'),
+  sendMessage: (clientId: string, code: number, data: any) =>
+    httpPost('SendMessage', { clientId, code, data }),
+  createProxySession: (url: string, headers: Record<string, string>) =>
+    httpPost('CreateProxySession', { url, headers }),
+  getProxyPort: () => httpPost('GetProxyPort'),
+  setCacheDir: (dir: string) => httpPost('SetCacheDir', dir),
+  getCacheDir: () => httpPost('GetCacheDir'),
+  selectCacheDir: () => httpPost('SelectCacheDir'),
+  downloadVideo: (url: string, headers: Record<string, string>, videoName: string) =>
+    httpPost('DownloadVideo', { url, headers, videoName }),
+  getCachedFile: (url: string) => httpPost('GetCachedFile', url),
+  getDownloadProgress: (id: string) => httpPost('GetDownloadProgress', id),
+  listCachedFiles: () => httpPost('ListCachedFiles'),
+  deleteCachedFile: (url: string) => httpPost('DeleteCachedFile', url),
+  getDownloadQueue: () => httpPost('GetDownloadQueue'),
+  cancelDownload: (id: string) => httpPost('CancelDownload', id),
+  retryDownload: (id: string) => httpPost('RetryDownload', id),
+  listCachedFilesPaged: (page: number, pageSize: number, keyword: string, status: string) =>
+    httpPost('ListCachedFilesPaged', { page, pageSize, keyword, status }),
+  deleteCacheById: (id: number) => httpPost('DeleteCacheByID', id),
+  deleteCacheBatch: (ids: number[]) => httpPost('DeleteCacheBatch', ids),
+  getCacheStats: () => httpPost('GetCacheStats'),
+  sendTopicMessage: (clientId: string, code: number, data: any, topicId: string) =>
+    httpPost('SendTopicMessage', { clientId, code, data, topicId }),
+  saveCacheProgress: (filePath: string, progress: number, duration: number) =>
+    httpPost('SaveCacheProgress', { filePath, progress, duration }),
+  getCacheProgress: (filePath: string) =>
+    httpPost('GetCacheProgress', filePath),
+  savePlayHistory: (entry: PlayHistoryEntry) =>
+    httpPost('SavePlayHistory', entry),
+  getPlayHistory: () =>
+    httpPost('GetPlayHistory'),
+  findNextCachedEpisode: (sourceKey: string, playFlag: string, episodeIndex: number) =>
+    httpPost('FindNextCachedEpisode', { sourceKey, playFlag, episodeIndex }),
+  findDownloadRecordByFilePath: (filePath: string) =>
+    httpPost('FindDownloadRecordByFilePath', filePath),
+  getLocalIps: () =>
+    httpPost('GetLocalIps'),
+  getSelectedLanIp: () =>
+    httpPost('GetSelectedLanIp'),
+  setSelectedLanIp: (ip: string) =>
+    httpPost('SetSelectedLanIp', ip),
+};
 
 export const api = {
-  startWsServer: (port: number) => window.go.main.App.StartWsServer(port),
-  stopWsServer: () => window.go.main.App.StopWsServer(),
-  getWsServerStatus: () => window.go.main.App.GetWsServerStatus(),
-  getLocalIp: () => window.go.main.App.GetLocalIp(),
-  getClients: () => window.go.main.App.GetClients(),
+  startWsServer: (port: number) =>
+    isWeb ? httpAPI.startWsServer(port) : window.go.main.App.StartWsServer(port),
+  stopWsServer: () =>
+    isWeb ? httpAPI.stopWsServer() : window.go.main.App.StopWsServer(),
+  getWsServerStatus: () =>
+    isWeb ? httpAPI.getWsServerStatus() : window.go.main.App.GetWsServerStatus(),
+  getLocalIp: () =>
+    isWeb ? httpAPI.getLocalIp() : window.go.main.App.GetLocalIp(),
+  getClients: () =>
+    isWeb ? httpAPI.getClients() : window.go.main.App.GetClients(),
   sendMessage: (clientId: string, code: number, data: any) =>
-    window.go.main.App.SendMessage(clientId, code, data),
-
+    isWeb ? httpAPI.sendMessage(clientId, code, data) : window.go.main.App.SendMessage(clientId, code, data),
   createProxySession: (url: string, headers: Record<string, string>) =>
-    window.go.main.App.CreateProxySession(url, headers),
-
-  getProxyPort: () => window.go.main.App.GetProxyPort(),
-
-  setCacheDir: (dir: string) => window.go.main.App.SetCacheDir(dir),
-  getCacheDir: () => window.go.main.App.GetCacheDir(),
-  selectCacheDir: () => window.go.main.App.SelectCacheDir(),
+    isWeb ? httpAPI.createProxySession(url, headers) : window.go.main.App.CreateProxySession(url, headers),
+  getProxyPort: () =>
+    isWeb ? httpAPI.getProxyPort() : window.go.main.App.GetProxyPort(),
+  setCacheDir: (dir: string) =>
+    isWeb ? httpAPI.setCacheDir(dir) : window.go.main.App.SetCacheDir(dir),
+  getCacheDir: () =>
+    isWeb ? httpAPI.getCacheDir() : window.go.main.App.GetCacheDir(),
+  selectCacheDir: () =>
+    isWeb ? httpAPI.selectCacheDir() : window.go.main.App.SelectCacheDir(),
   downloadVideo: (url: string, headers: Record<string, string>, videoName: string) =>
-    window.go.main.App.DownloadVideo(url, headers, videoName),
-  getCachedFile: (url: string) => window.go.main.App.GetCachedFile(url),
-  getDownloadProgress: (id: string) => window.go.main.App.GetDownloadProgress(id),
-  listCachedFiles: () => window.go.main.App.ListCachedFiles(),
-  deleteCachedFile: (url: string) => window.go.main.App.DeleteCachedFile(url),
-  getDownloadQueue: () => window.go.main.App.GetDownloadQueue(),
-  cancelDownload: (id: string) => window.go.main.App.CancelDownload(id),
-  retryDownload: (id: string) => window.go.main.App.RetryDownload(id),
+    isWeb ? httpAPI.downloadVideo(url, headers, videoName) : window.go.main.App.DownloadVideo(url, headers, videoName),
+  downloadVideoWithMeta: (url: string, headers: Record<string, string>, videoName: string, sourceKey: string, playFlag: string, episodeIndex: number, vodId: string, vodPic: string) =>
+    isWeb ? httpAPI.downloadVideo(url, headers, videoName) : window.go.main.App.DownloadVideoWithMeta(url, headers, videoName, sourceKey, playFlag, episodeIndex, vodId, vodPic),
+  getCachedFile: (url: string) =>
+    isWeb ? httpAPI.getCachedFile(url) : window.go.main.App.GetCachedFile(url),
+  getDownloadProgress: (id: string) =>
+    isWeb ? httpAPI.getDownloadProgress(id) : window.go.main.App.GetDownloadProgress(id),
+  listCachedFiles: () =>
+    isWeb ? httpAPI.listCachedFiles() : window.go.main.App.ListCachedFiles(),
+  deleteCachedFile: (url: string) =>
+    isWeb ? httpAPI.deleteCachedFile(url) : window.go.main.App.DeleteCachedFile(url),
+  getDownloadQueue: () =>
+    isWeb ? httpAPI.getDownloadQueue() : window.go.main.App.GetDownloadQueue(),
+  cancelDownload: (id: string) =>
+    isWeb ? httpAPI.cancelDownload(id) : window.go.main.App.CancelDownload(id),
+  retryDownload: (id: string) =>
+    isWeb ? httpAPI.retryDownload(id) : window.go.main.App.RetryDownload(id),
   listCachedFilesPaged: (page: number, pageSize: number, keyword: string, status: string) =>
-    window.go.main.App.ListCachedFilesPaged(page, pageSize, keyword, status),
-  deleteCacheById: (id: number) => window.go.main.App.DeleteCacheByID(id),
-  deleteCacheBatch: (ids: number[]) => window.go.main.App.DeleteCacheBatch(ids),
-  getCacheStats: () => window.go.main.App.GetCacheStats(),
-  setKeepScreenOn: (active: boolean) => window.go.main.App.SetKeepScreenOn(active),
+    isWeb ? httpAPI.listCachedFilesPaged(page, pageSize, keyword, status) : window.go.main.App.ListCachedFilesPaged(page, pageSize, keyword, status),
+  deleteCacheById: (id: number) =>
+    isWeb ? httpAPI.deleteCacheById(id) : window.go.main.App.DeleteCacheByID(id),
+  deleteCacheBatch: (ids: number[]) =>
+    isWeb ? httpAPI.deleteCacheBatch(ids) : window.go.main.App.DeleteCacheBatch(ids),
+  getCacheStats: () =>
+    isWeb ? httpAPI.getCacheStats() : window.go.main.App.GetCacheStats(),
+
+  saveCacheProgress: (filePath: string, progress: number, duration: number) =>
+    isWeb ? httpAPI.saveCacheProgress(filePath, progress, duration) : window.go.main.App.SaveCacheProgress(filePath, progress, duration),
+
+  getCacheProgress: (filePath: string) =>
+    isWeb ? httpAPI.getCacheProgress(filePath) : window.go.main.App.GetCacheProgress(filePath),
+
+  savePlayHistory: (entry: PlayHistoryEntry) =>
+    isWeb ? httpAPI.savePlayHistory(entry) : window.go.main.App.SavePlayHistory(entry),
+
+  getPlayHistory: () =>
+    isWeb ? httpAPI.getPlayHistory() : window.go.main.App.GetPlayHistory(),
+
+  findNextCachedEpisode: (sourceKey: string, playFlag: string, episodeIndex: number) =>
+    isWeb ? httpAPI.findNextCachedEpisode(sourceKey, playFlag, episodeIndex) : window.go.main.App.FindNextCachedEpisode(sourceKey, playFlag, episodeIndex),
+
+  findDownloadRecordByFilePath: (filePath: string) =>
+    isWeb ? httpAPI.findDownloadRecordByFilePath(filePath) : window.go.main.App.FindDownloadRecordByFilePath(filePath),
+
+  getLocalIps: () =>
+    isWeb ? httpAPI.getLocalIps() : window.go.main.App.GetLocalIps(),
+
+  getSelectedLanIp: () =>
+    isWeb ? httpAPI.getSelectedLanIp() : window.go.main.App.GetSelectedLanIp(),
+
+  setSelectedLanIp: (ip: string) =>
+    isWeb ? httpAPI.setSelectedLanIp(ip) : window.go.main.App.SetSelectedLanIp(ip),
+
+  sendTopicMessage: async (clientId: string, code: number, data: any, topicId: string, callback: (data: any) => void) => {
+    if (isWeb) {
+      try {
+        const result = await httpAPI.sendTopicMessage(clientId, code, data, topicId);
+        callback(result);
+      } catch (e) {
+        console.warn('[PCBox] sendTopicMessage http failed:', e);
+      }
+    } else {
+      const { useStore } = await import('../store');
+      useStore.getState().addTopicCallback(topicId, callback);
+      window.go.main.App.SendMessage(clientId, code, data);
+    }
+  },
+
+  setKeepScreenOn: (_active: boolean) => {
+    if (!isWeb) {
+      window.go.main.App.SetKeepScreenOn(_active);
+    }
+  },
 
   onClientConnected: (callback: ClientConnectedCallback) => {
     clientConnectedListeners.push(callback);
@@ -177,26 +362,44 @@ export const api = {
   },
 
   toggleFullscreen: async (fullscreen?: boolean) => {
+    if (!isWeb) {
+      try {
+        if (fullscreen === undefined || fullscreen) {
+          runtime.WindowFullscreen();
+        } else {
+          runtime.WindowUnfullscreen();
+        }
+        return fullscreen !== undefined ? fullscreen : true;
+      } catch (e) {
+        console.warn('[PCBox] toggleFullscreen error:', e);
+        return false;
+      }
+    }
     try {
       if (fullscreen === undefined || fullscreen) {
-        runtime.WindowFullscreen();
+        await document.documentElement.requestFullscreen();
       } else {
-        runtime.WindowUnfullscreen();
+        await document.exitFullscreen();
       }
       return fullscreen !== undefined ? fullscreen : true;
     } catch (e) {
-      console.warn('[Wails] toggleFullscreen error:', e);
+      console.warn('[PCBox] toggleFullscreen error:', e);
       return false;
     }
   },
 
-  isFullscreen: () => Promise.resolve(false),
+  isFullscreen: () => {
+    if (!isWeb) return Promise.resolve(false);
+    return Promise.resolve(!!document.fullscreenElement);
+  },
 
-  setAlwaysOnTop: (flag: boolean) => {
-    try {
-      runtime.WindowSetAlwaysOnTop(flag);
-    } catch (e) {
-      console.warn('[Wails] setAlwaysOnTop error:', e);
+  setAlwaysOnTop: (_flag: boolean) => {
+    if (!isWeb) {
+      try {
+        runtime.WindowSetAlwaysOnTop(_flag);
+      } catch (e) {
+        console.warn('[PCBox] setAlwaysOnTop error:', e);
+      }
     }
     return Promise.resolve(true);
   },
@@ -212,10 +415,12 @@ export const api = {
   removeAllListeners: (_channel: string) => {},
 
   minimizeWindow: () => {
-    try {
-      runtime.WindowMinimise();
-    } catch (e) {
-      console.warn('[Wails] minimizeWindow error:', e);
+    if (!isWeb) {
+      try {
+        runtime.WindowMinimise();
+      } catch (e) {
+        console.warn('[PCBox] minimizeWindow error:', e);
+      }
     }
   },
 

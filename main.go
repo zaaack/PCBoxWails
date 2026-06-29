@@ -132,6 +132,16 @@ func runServer(ipcPort int) {
 
 	menu := tray.NewMenu()
 	menu.Add("显示窗口", func() { showWindow(srv) })
+	menu.Add("打开网页版", func() {
+		port := srv.GetProxyPort()
+		if port > 0 {
+			ip := srv.GetSelectedLanIp()
+			if ip == "" {
+				ip = "127.0.0.1"
+			}
+			OpenBrowser("http://" + ip + ":" + itoa(port))
+		}
+	})
 	menu.AddSeparator()
 	menu.Add("退出", func() {
 		t.Remove()
@@ -146,12 +156,14 @@ func runServer(ipcPort int) {
 	t.Show()
 	
 	go showWindow(srv)
+
 	if err := t.Run(); err != nil {
 		log.Fatalf("[Tray] Run error: %v", err)
 	}
 }
 
 func runWindow(ipcPort int) {
+	os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--aggressive-cache-discard --disable-gpu-program-cache --disable-gpu-shader-disk-cache --media-cache-size=10485760")
 	wapp := NewWindowApp(ipcPort)
 
 	if err := wapp.ipcClient.Connect(); err != nil {
@@ -207,8 +219,6 @@ func showWindow(srv *ServerApp) {
 	srv.windowCmd = exec.Command(exe, "--mode=window", "--ipc-port=9899")
 	srv.windowCmd.Stdout = os.Stdout
 	srv.windowCmd.Stderr = os.Stderr
-	// --- 修复核心：让子进程带有 PCBOX_DEVTOOLS 环境变量 ---
-	srv.windowCmd.Env = append(os.Environ())
 
 	if err := srv.windowCmd.Start(); err != nil {
 		log.Printf("[Server] Failed to start window: %v", err)
@@ -230,4 +240,31 @@ func init() {
 		<-c
 		os.Exit(0)
 	}()
+}
+
+func OpenBrowser(url string) {
+	exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+}
+
+func itoa(i int) string {
+	if i == 0 {
+		return "0"
+	}
+	var buf [12]byte
+	neg := false
+	if i < 0 {
+		neg = true
+		i = -i
+	}
+	pos := len(buf)
+	for i > 0 {
+		pos--
+		buf[pos] = byte('0' + i%10)
+		i /= 10
+	}
+	if neg {
+		pos--
+		buf[pos] = '-'
+	}
+	return string(buf[pos:])
 }

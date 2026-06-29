@@ -12,7 +12,8 @@ export const Settings: React.FC<SettingsProps> = ({ onStartServer, onStopServer 
   const {
     wsRunning, wsPort, localIp, connectedClient, theme, setTheme, menuBarVisible, setMenuBarVisible,
     cacheDir, loadCacheDir, selectCacheDir, cacheStats, loadCacheStats,
-    showPlayerTime, setShowPlayerTime,
+    showPlayerTime, setShowPlayerTime, proxyPort,
+    lanIps, selectedLanIp, setSelectedLanIp,
   } = useStore();
   const [port, setPort] = useState(wsPort);
 
@@ -115,6 +116,43 @@ export const Settings: React.FC<SettingsProps> = ({ onStartServer, onStopServer 
           </div>
         </div>
       )}
+
+      <div className="settings-section">
+        <h3>Web App</h3>
+        <div className="settings-row">
+          <label>Access IP:</label>
+          <select
+            className="settings-input"
+            value={selectedLanIp || '127.0.0.1'}
+            onChange={(e) => setSelectedLanIp(e.target.value)}
+          >
+            <option value="127.0.0.1">127.0.0.1 (Local)</option>
+            {lanIps.map((ip) => (
+              <option key={ip} value={ip}>{ip}</option>
+            ))}
+          </select>
+        </div>
+        <div className="settings-row">
+          <label>URL:</label>
+          <span>
+            {proxyPort > 0
+              ? `http://${selectedLanIp || '127.0.0.1'}:${proxyPort}`
+              : 'N/A'}
+          </span>
+        </div>
+        <div className="settings-actions">
+          <button
+            className="btn btn-primary"
+            disabled={proxyPort <= 0}
+            onClick={() => {
+              const webUrl = `http://${selectedLanIp || '127.0.0.1'}:${proxyPort}`;
+              window.open(webUrl, '_blank');
+            }}
+          >
+            Open in Browser
+          </button>
+        </div>
+      </div>
 
       {connectedClient && (
         <div className="settings-section">

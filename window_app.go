@@ -83,6 +83,38 @@ func (a *WindowApp) GetLocalIp() string {
 	return toString(result)
 }
 
+func (a *WindowApp) GetLocalIps() []string {
+	result, err := a.ipcClient.Call("GetLocalIps", nil)
+	if err != nil {
+		log.Printf("[Window] GetLocalIps error: %v", err)
+		return nil
+	}
+	if arr, ok := result.([]interface{}); ok {
+		ips := make([]string, len(arr))
+		for i, v := range arr {
+			ips[i] = toString(v)
+		}
+		return ips
+	}
+	return nil
+}
+
+func (a *WindowApp) GetSelectedLanIp() string {
+	result, err := a.ipcClient.Call("GetSelectedLanIp", nil)
+	if err != nil {
+		log.Printf("[Window] GetSelectedLanIp error: %v", err)
+		return ""
+	}
+	return toString(result)
+}
+
+func (a *WindowApp) SetSelectedLanIp(ip string) {
+	_, err := a.ipcClient.Call("SetSelectedLanIp", ip)
+	if err != nil {
+		log.Printf("[Window] SetSelectedLanIp error: %v", err)
+	}
+}
+
 func (a *WindowApp) GetClients() []map[string]interface{} {
 	result, err := a.ipcClient.Call("GetClients", nil)
 	if err != nil {
@@ -163,6 +195,24 @@ func (a *WindowApp) DownloadVideo(rawURL string, headers map[string]string, vide
 	})
 	if err != nil {
 		log.Printf("[Window] DownloadVideo error: %v", err)
+		return ""
+	}
+	return toString(result)
+}
+
+func (a *WindowApp) DownloadVideoWithMeta(rawURL string, headers map[string]string, videoName string, sourceKey string, playFlag string, episodeIndex int, vodId string, vodPic string) string {
+	result, err := a.ipcClient.Call("DownloadVideoWithMeta", map[string]interface{}{
+		"url":          rawURL,
+		"headers":      headers,
+		"videoName":    videoName,
+		"sourceKey":    sourceKey,
+		"playFlag":     playFlag,
+		"episodeIndex": episodeIndex,
+		"vodId":        vodId,
+		"vodPic":       vodPic,
+	})
+	if err != nil {
+		log.Printf("[Window] DownloadVideoWithMeta error: %v", err)
 		return ""
 	}
 	return toString(result)
@@ -273,6 +323,68 @@ func (a *WindowApp) GetCacheStats() map[string]interface{} {
 	if err != nil {
 		log.Printf("[Window] GetCacheStats error: %v", err)
 		return map[string]interface{}{"total": 0, "totalSize": 0, "pending": 0}
+	}
+	return toMap(result)
+}
+
+func (a *WindowApp) SaveCacheProgress(filePath string, progress int, duration int) bool {
+	result, err := a.ipcClient.Call("SaveCacheProgress", map[string]interface{}{
+		"filePath": filePath,
+		"progress": progress,
+		"duration": duration,
+	})
+	if err != nil {
+		log.Printf("[Window] SaveCacheProgress error: %v", err)
+		return false
+	}
+	return toBool(result)
+}
+
+func (a *WindowApp) GetCacheProgress(filePath string) map[string]interface{} {
+	result, err := a.ipcClient.Call("GetCacheProgress", filePath)
+	if err != nil {
+		log.Printf("[Window] GetCacheProgress error: %v", err)
+		return map[string]interface{}{"progress": 0, "duration": 0}
+	}
+	return toMap(result)
+}
+
+func (a *WindowApp) SavePlayHistory(entry PlayHistoryEntry) bool {
+	result, err := a.ipcClient.Call("SavePlayHistory", entry)
+	if err != nil {
+		log.Printf("[Window] SavePlayHistory error: %v", err)
+		return false
+	}
+	return toBool(result)
+}
+
+func (a *WindowApp) GetPlayHistory() []map[string]interface{} {
+	result, err := a.ipcClient.Call("GetPlayHistory", nil)
+	if err != nil {
+		log.Printf("[Window] GetPlayHistory error: %v", err)
+		return []map[string]interface{}{}
+	}
+	return toSlice(result)
+}
+
+func (a *WindowApp) FindNextCachedEpisode(sourceKey string, playFlag string, episodeIndex int) map[string]interface{} {
+	result, err := a.ipcClient.Call("FindNextCachedEpisode", map[string]interface{}{
+		"sourceKey":    sourceKey,
+		"playFlag":     playFlag,
+		"episodeIndex": episodeIndex,
+	})
+	if err != nil {
+		log.Printf("[Window] FindNextCachedEpisode error: %v", err)
+		return nil
+	}
+	return toMap(result)
+}
+
+func (a *WindowApp) FindDownloadRecordByFilePath(filePath string) map[string]interface{} {
+	result, err := a.ipcClient.Call("FindDownloadRecordByFilePath", filePath)
+	if err != nil {
+		log.Printf("[Window] FindDownloadRecordByFilePath error: %v", err)
+		return nil
 	}
 	return toMap(result)
 }

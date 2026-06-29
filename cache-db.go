@@ -13,19 +13,24 @@ import (
 )
 
 type DownloadRecord struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
-	URLHash   string    `gorm:"uniqueIndex;size:64" json:"urlHash"`
-	URL       string    `gorm:"type:text" json:"url"`
-	Headers   string    `gorm:"type:text" json:"headers"`
-	VideoName string    `gorm:"type:text" json:"videoName"`
-	FilePath  string    `gorm:"type:text" json:"filePath"`
-	IsHLS     bool      `json:"isHLS"`
-	Size      int64     `json:"size"`
-	Status    string    `gorm:"size:20;index" json:"status"`
-	Progress  float64   `json:"progress"`
-	Error     string    `gorm:"type:text" json:"error,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	URLHash      string    `gorm:"uniqueIndex;size:64" json:"urlHash"`
+	URL          string    `gorm:"type:text" json:"url"`
+	Headers      string    `gorm:"type:text" json:"headers"`
+	VideoName    string    `gorm:"type:text" json:"videoName"`
+	FilePath     string    `gorm:"type:text" json:"filePath"`
+	IsHLS        bool      `json:"isHLS"`
+	Size         int64     `json:"size"`
+	Status       string    `gorm:"size:20;index" json:"status"`
+	Progress     float64   `json:"progress"`
+	Error        string    `gorm:"type:text" json:"error,omitempty"`
+	SourceKey    string    `gorm:"size:64;index" json:"sourceKey,omitempty"`
+	PlayFlag     string    `gorm:"size:32" json:"playFlag,omitempty"`
+	EpisodeIndex int       `gorm:"index" json:"episodeIndex"`
+	VodId        string    `gorm:"size:64" json:"vodId,omitempty"`
+	VodPic       string    `gorm:"type:text" json:"vodPic,omitempty"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 type CacheDB struct {

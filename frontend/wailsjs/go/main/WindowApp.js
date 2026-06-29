@@ -26,8 +26,24 @@ export function DownloadVideo(arg1, arg2, arg3) {
   return window['go']['main']['WindowApp']['DownloadVideo'](arg1, arg2, arg3);
 }
 
+export function DownloadVideoWithMeta(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+  return window['go']['main']['WindowApp']['DownloadVideoWithMeta'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+}
+
+export function FindDownloadRecordByFilePath(arg1) {
+  return window['go']['main']['WindowApp']['FindDownloadRecordByFilePath'](arg1);
+}
+
+export function FindNextCachedEpisode(arg1, arg2, arg3) {
+  return window['go']['main']['WindowApp']['FindNextCachedEpisode'](arg1, arg2, arg3);
+}
+
 export function GetCacheDir() {
   return window['go']['main']['WindowApp']['GetCacheDir']();
+}
+
+export function GetCacheProgress(arg1) {
+  return window['go']['main']['WindowApp']['GetCacheProgress'](arg1);
 }
 
 export function GetCacheStats() {
@@ -54,8 +70,20 @@ export function GetLocalIp() {
   return window['go']['main']['WindowApp']['GetLocalIp']();
 }
 
+export function GetLocalIps() {
+  return window['go']['main']['WindowApp']['GetLocalIps']();
+}
+
+export function GetPlayHistory() {
+  return window['go']['main']['WindowApp']['GetPlayHistory']();
+}
+
 export function GetProxyPort() {
   return window['go']['main']['WindowApp']['GetProxyPort']();
+}
+
+export function GetSelectedLanIp() {
+  return window['go']['main']['WindowApp']['GetSelectedLanIp']();
 }
 
 export function GetWsServerStatus() {
@@ -74,6 +102,14 @@ export function RetryDownload(arg1) {
   return window['go']['main']['WindowApp']['RetryDownload'](arg1);
 }
 
+export function SaveCacheProgress(arg1, arg2, arg3) {
+  return window['go']['main']['WindowApp']['SaveCacheProgress'](arg1, arg2, arg3);
+}
+
+export function SavePlayHistory(arg1) {
+  return window['go']['main']['WindowApp']['SavePlayHistory'](arg1);
+}
+
 export function SelectCacheDir() {
   return window['go']['main']['WindowApp']['SelectCacheDir']();
 }
@@ -88,6 +124,10 @@ export function SetCacheDir(arg1) {
 
 export function SetKeepScreenOn(arg1) {
   return window['go']['main']['WindowApp']['SetKeepScreenOn'](arg1);
+}
+
+export function SetSelectedLanIp(arg1) {
+  return window['go']['main']['WindowApp']['SetSelectedLanIp'](arg1);
 }
 
 export function StartWsServer(arg1) {

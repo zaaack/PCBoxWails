@@ -1,8 +1,11 @@
 package server
 
 import (
+	"embed"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -20,19 +23,81 @@ type ProxySession struct {
 	Headers map[string]string
 }
 
+type SSEEvent struct {
+	Name string      `json:"name"`
+	Data interface{} `json:"data"`
+}
+
 type ProxyServer struct {
-	sessions map[string]*ProxySession
-	server   *http.Server
-	port     int
-	mu       sync.RWMutex
+	sessions   map[string]*ProxySession
+	server     *http.Server
+	port       int
+	mu         sync.RWMutex
+	apiHandler http.Handler
+	sseClients map[chan SSEEvent]bool
+	sseMu      sync.Mutex
 }
 
 func NewProxyServer() *ProxyServer {
-	return &ProxyServer{sessions: make(map[string]*ProxySession)}
+	return &ProxyServer{
+		sessions:   make(map[string]*ProxySession),
+		sseClients: make(map[chan SSEEvent]bool),
+	}
 }
 
-func (p *ProxyServer) Start() error {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+func (p *ProxyServer) SetAPIHandler(handler http.Handler) {
+	p.apiHandler = handler
+}
+
+func (p *ProxyServer) BroadcastEvent(name string, data interface{}) {
+	p.sseMu.Lock()
+	defer p.sseMu.Unlock()
+	evt := SSEEvent{Name: name, Data: data}
+	for ch := range p.sseClients {
+		select {
+		case ch <- evt:
+		default:
+		}
+	}
+}
+
+func (p *ProxyServer) handleSSE(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	ch := make(chan SSEEvent, 64)
+	p.sseMu.Lock()
+	p.sseClients[ch] = true
+	p.sseMu.Unlock()
+
+	defer func() {
+		p.sseMu.Lock()
+		delete(p.sseClients, ch)
+		p.sseMu.Unlock()
+	}()
+
+	ctx := r.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case evt := <-ch:
+			data, _ := json.Marshal(evt.Data)
+			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evt.Name, data)
+			flusher.Flush()
+		}
+	}
+}
+
+func (p *ProxyServer) Start(port int) error {
+	listener, err := tryListen(port)
 	if err != nil {
 		return err
 	}
@@ -42,6 +107,11 @@ func (p *ProxyServer) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/proxy", p.handleProxy)
 	mux.HandleFunc("/local", p.handleLocal)
+	if p.apiHandler != nil {
+		mux.Handle("/api/", http.StripPrefix("/api", p.apiHandler))
+	}
+	mux.HandleFunc("/api/events", p.handleSSE)
+	mux.HandleFunc("/", p.handleSPA)
 
 	p.server = &http.Server{Handler: mux}
 
@@ -55,6 +125,59 @@ func (p *ProxyServer) Start() error {
 	return nil
 }
 
+func tryListen(port int) (net.Listener, error) {
+	for i := 0; i < 100; i++ {
+		addr := fmt.Sprintf("127.0.0.1:%d", port+i)
+		listener, err := net.Listen("tcp", addr)
+		if err == nil {
+			if i > 0 {
+				log.Printf("[Proxy] Port %d busy, using %d instead", port, port+i)
+			}
+			return listener, nil
+		}
+	}
+	return nil, fmt.Errorf("failed to find available port after 100 tries")
+}
+
+func (p *ProxyServer) Port() int {
+	return p.port
+}
+
+var spaFS embed.FS
+var spaMounted bool
+
+func (p *ProxyServer) MountSPA(fs embed.FS) {
+	spaFS = fs
+	spaMounted = true
+}
+
+func (p *ProxyServer) handleSPA(w http.ResponseWriter, r *http.Request) {
+	if !spaMounted {
+		http.NotFound(w, r)
+		return
+	}
+
+	subFS, err := fs.Sub(spaFS, "frontend/dist")
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	path := strings.TrimPrefix(r.URL.Path, "/")
+	if path == "" {
+		path = "index.html"
+	}
+
+	if f, err := subFS.Open(path); err != nil {
+		r.URL.Path = "/"
+		http.FileServer(http.FS(subFS)).ServeHTTP(w, r)
+		return
+	} else {
+		f.Close()
+		http.FileServer(http.FS(subFS)).ServeHTTP(w, r)
+	}
+}
+
 func (p *ProxyServer) Stop() {
 	if p.server != nil {
 		p.server.Close()
@@ -63,10 +186,6 @@ func (p *ProxyServer) Stop() {
 	p.mu.Lock()
 	p.sessions = make(map[string]*ProxySession)
 	p.mu.Unlock()
-}
-
-func (p *ProxyServer) Port() int {
-	return p.port
 }
 
 func (p *ProxyServer) handleLocal(w http.ResponseWriter, r *http.Request) {
