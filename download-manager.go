@@ -361,6 +361,7 @@ func (dm *DownloadManager) downloadMP4(id string, rawURL string, headers map[str
 
 	fileName := fmt.Sprintf("%s_%s.mp4", sanitizeFilename(videoName), id[:8])
 	filePath := filepath.Join(dm.cacheDir, fileName)
+	filePath, _ = filepath.Abs(filePath)
 
 	var existingSize int64
 	if fi, err := os.Stat(filePath); err == nil {
@@ -478,6 +479,7 @@ func (dm *DownloadManager) downloadHLS(id string, m3u8URL string, headers map[st
 	os.MkdirAll(dm.cacheDir, 0755)
 
 	hlsDir := filepath.Join(dm.cacheDir, fmt.Sprintf("hls_%s", id[:8]))
+	hlsDir, _ = filepath.Abs(hlsDir)
 	os.MkdirAll(hlsDir, 0755)
 
 	dm.updateProgress(id, 0, "downloading", "")
