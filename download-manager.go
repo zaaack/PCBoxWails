@@ -465,7 +465,7 @@ func (dm *DownloadManager) downloadMP4(id string, rawURL string, headers map[str
 
 	dm.cacheDB.db.Model(&DownloadRecord{}).Where("url_hash = ?", id).
 		Updates(map[string]interface{}{
-			"file_path": filePath,
+			"file_path": fileName,
 			"is_hls":    false,
 			"size":      downloaded,
 			"status":    "completed",
@@ -544,9 +544,10 @@ func (dm *DownloadManager) downloadHLS(id string, m3u8URL string, headers map[st
 	localM3U8Path := filepath.Join(hlsDir, "playlist.m3u8")
 	os.WriteFile(localM3U8Path, []byte(localM3U8), 0644)
 
+	hlsRelPath := filepath.Join(fmt.Sprintf("hls_%s", id[:8]), "playlist.m3u8")
 	dm.cacheDB.db.Model(&DownloadRecord{}).Where("url_hash = ?", id).
 		Updates(map[string]interface{}{
-			"file_path": localM3U8Path,
+			"file_path": hlsRelPath,
 			"is_hls":    true,
 			"size":      totalSize,
 			"status":    "completed",
