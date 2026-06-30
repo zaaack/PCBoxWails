@@ -33,6 +33,7 @@ func (p *ProxyServer) SetCacheDir(dir string) {
 	absDir, err := filepath.Abs(dir)
 	if err == nil {
 		p.cacheDir = absDir
+		log.Printf("[Proxy] SetCacheDir: %s", absDir)
 	}
 }
 
@@ -84,13 +85,18 @@ func (p *ProxyServer) Port() int {
 
 func (p *ProxyServer) resolveLocalFile(filePath string) string {
 	if filepath.IsAbs(filePath) || p.cacheDir == "" {
+		log.Printf("[Proxy] resolveLocalFile: path is absolute or no cacheDir -> %s", filePath)
 		return filePath
 	}
-	return filepath.Join(p.cacheDir, filePath)
+	resolved := filepath.Join(p.cacheDir, filePath)
+	log.Printf("[Proxy] resolveLocalFile: %s -> %s", filePath, resolved)
+	return resolved
 }
 
 func (p *ProxyServer) handleLocal(w http.ResponseWriter, r *http.Request) {
-	filePath := p.resolveLocalFile(r.URL.Query().Get("u"))
+	rawPath := r.URL.Query().Get("u")
+	filePath := p.resolveLocalFile(rawPath)
+	log.Printf("[Proxy] handleLocal: raw=%q resolved=%q", rawPath, filePath)
 	if filePath == "" {
 		http.Error(w, "Missing u parameter", http.StatusBadRequest)
 		return
@@ -99,9 +105,11 @@ func (p *ProxyServer) handleLocal(w http.ResponseWriter, r *http.Request) {
 	if strings.HasSuffix(filePath, ".m3u8") || strings.Contains(filePath, ".m3u8") {
 		content, err := os.ReadFile(filePath)
 		if err != nil {
+			log.Printf("[Proxy] handleLocal: read m3u8 FAILED %s: %v", filePath, err)
 			http.Error(w, "File not found", http.StatusNotFound)
 			return
 		}
+		log.Printf("[Proxy] handleLocal: read m3u8 OK %s (%d bytes)", filePath, len(content))
 		dir := filePath
 		if idx := strings.LastIndex(filePath, "\\"); idx >= 0 {
 			dir = filePath[:idx+1]
@@ -127,6 +135,7 @@ func (p *ProxyServer) handleLocal(w http.ResponseWriter, r *http.Request) {
 				resolved = dir + trimmed
 			}
 			proxyURL := fmt.Sprintf("http://127.0.0.1:%d/local?u=%s", p.port, url.QueryEscape(resolved))
+			log.Printf("[Proxy] handleLocal: seg %q -> %q", trimmed, proxyURL)
 			result = append(result, proxyURL)
 		}
 		w.Header().Set("Content-Type", "application/x-mpegURL")
@@ -137,8 +146,10 @@ func (p *ProxyServer) handleLocal(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
+	log.Printf("[Proxy] handleLocal: opening %s", filePath)
 	f, err := os.Open(filePath)
 	if err != nil {
+		log.Printf("[Proxy] handleLocal: open FAILED %s: %v", filePath, err)
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
