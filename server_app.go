@@ -44,6 +44,7 @@ func (a *ServerApp) startup() {
 		log.Printf("[PCBox] Proxy server failed to start: %v", err)
 	}
 	a.downloadManager = NewDownloadManager()
+	a.proxyServer.SetCacheDir(a.downloadManager.GetCacheDir())
 	a.downloadManager.ResumePendingDownloads(func(id string, progress DownloadProgress) {
 		a.emitEvent("download-progress", progress)
 	})
