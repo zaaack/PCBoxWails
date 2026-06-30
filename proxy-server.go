@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +26,14 @@ type ProxyServer struct {
 	server   *http.Server
 	port     int
 	mu       sync.RWMutex
+	cacheDir string
+}
+
+func (p *ProxyServer) SetCacheDir(dir string) {
+	absDir, err := filepath.Abs(dir)
+	if err == nil {
+		p.cacheDir = absDir
+	}
 }
 
 func NewProxyServer() *ProxyServer {
@@ -73,8 +82,15 @@ func (p *ProxyServer) Port() int {
 	return p.port
 }
 
+func (p *ProxyServer) resolveLocalFile(filePath string) string {
+	if filepath.IsAbs(filePath) || p.cacheDir == "" {
+		return filePath
+	}
+	return filepath.Join(p.cacheDir, filePath)
+}
+
 func (p *ProxyServer) handleLocal(w http.ResponseWriter, r *http.Request) {
-	filePath := r.URL.Query().Get("u")
+	filePath := p.resolveLocalFile(r.URL.Query().Get("u"))
 	if filePath == "" {
 		http.Error(w, "Missing u parameter", http.StatusBadRequest)
 		return

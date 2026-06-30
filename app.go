@@ -32,6 +32,7 @@ func (a *App) startup(ctx context.Context) {
 	a.proxyServer = NewProxyServer()
 	a.proxyServer.Start()
 	a.downloadManager = NewDownloadManager()
+	a.proxyServer.SetCacheDir(a.downloadManager.GetCacheDir())
 	a.downloadManager.ResumePendingDownloads(func(id string, progress DownloadProgress) {
 		a.emitEvent("download-progress", progress)
 	})
@@ -140,6 +141,7 @@ func (a *App) SetCacheDir(dir string) {
 		return
 	}
 	a.downloadManager.SetCacheDir(dir)
+	a.proxyServer.SetCacheDir(dir)
 }
 
 func (a *App) GetCacheDir() string {
@@ -160,6 +162,7 @@ func (a *App) SelectCacheDir() string {
 		return ""
 	}
 	a.downloadManager.SetCacheDir(dir)
+	a.proxyServer.SetCacheDir(dir)
 	return dir
 }
 
