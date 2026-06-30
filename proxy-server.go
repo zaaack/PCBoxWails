@@ -84,13 +84,33 @@ func (p *ProxyServer) Port() int {
 }
 
 func (p *ProxyServer) resolveLocalFile(filePath string) string {
-	if filepath.IsAbs(filePath) || p.cacheDir == "" {
-		log.Printf("[Proxy] resolveLocalFile: path is absolute or no cacheDir -> %s", filePath)
+	if filepath.IsAbs(filePath) {
+		log.Printf("[Proxy] resolveLocalFile: absolute -> %s", filePath)
 		return filePath
 	}
-	resolved := filepath.Join(p.cacheDir, filePath)
-	log.Printf("[Proxy] resolveLocalFile: %s -> %s", filePath, resolved)
-	return resolved
+	if p.cacheDir == "" {
+		return filePath
+	}
+	// Try 1: relative as-is (works when CWD == project root)
+	if _, err := os.Stat(filePath); err == nil {
+		log.Printf("[Proxy] resolveLocalFile: as-is OK -> %s", filePath)
+		return filePath
+	}
+	// Try 2: resolve against cacheDir's parent (handles old DB paths like "PCBoxCache/...")
+	parent := filepath.Dir(p.cacheDir)
+	resolved := filepath.Join(parent, filePath)
+	log.Printf("[Proxy] resolveLocalFile: try parent join %s + %s -> %s", parent, filePath, resolved)
+	if _, err := os.Stat(resolved); err == nil {
+		return resolved
+	}
+	// Try 3: resolve against cacheDir directly (handles bare segment names)
+	resolved2 := filepath.Join(p.cacheDir, filePath)
+	log.Printf("[Proxy] resolveLocalFile: try cacheDir join %s + %s -> %s", p.cacheDir, filePath, resolved2)
+	if _, err := os.Stat(resolved2); err == nil {
+		return resolved2
+	}
+	log.Printf("[Proxy] resolveLocalFile: all failed, returning raw %s", filePath)
+	return filePath
 }
 
 func (p *ProxyServer) handleLocal(w http.ResponseWriter, r *http.Request) {
