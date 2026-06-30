@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"embed"
 	"flag"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -217,8 +219,18 @@ func showWindow(srv *ServerApp) {
 	}
 
 	srv.windowCmd = exec.Command(exe, "--mode=window", "--ipc-port=9899")
-	srv.windowCmd.Stdout = os.Stdout
-	srv.windowCmd.Stderr = os.Stderr
+
+	stdoutPipe, _ := srv.windowCmd.StdoutPipe()
+	stderrPipe, _ := srv.windowCmd.StderrPipe()
+
+	pipeLog := func(prefix string, reader io.Reader) {
+		scanner := bufio.NewScanner(reader)
+		for scanner.Scan() {
+			log.Printf("[Window:%s] %s", prefix, scanner.Text())
+		}
+	}
+	go pipeLog("stdout", stdoutPipe)
+	go pipeLog("stderr", stderrPipe)
 
 	if err := srv.windowCmd.Start(); err != nil {
 		log.Printf("[Server] Failed to start window: %v", err)
