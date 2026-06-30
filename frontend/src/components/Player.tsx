@@ -35,6 +35,8 @@ export const PlayerView: React.FC = () => {
   const playerRef = useRef<Player | null>(null);
   const [playError, setPlayError] = useState('');
   const [isSystemFullscreen, setIsSystemFullscreen] = useState(false);
+  const isSystemFullscreenRef = useRef(isSystemFullscreen);
+  isSystemFullscreenRef.current = isSystemFullscreen;
   const [isOnTop, setIsOnTop] = useState(false);
   const [showEpisodePanel, setShowEpisodePanel] = useState(false);
   const [showOverlay, setShowOverlay] = useState(true);
@@ -432,7 +434,7 @@ export const PlayerView: React.FC = () => {
   };
 
   const toggleSystemFullscreen = async () => {
-    if (!isSystemFullscreen) {
+    if (!isSystemFullscreenRef.current) {
       await api.setFrame(false);
       await api.setAlwaysOnTop(true);
       const result = await api.toggleFullscreen(true);

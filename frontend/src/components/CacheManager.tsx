@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useStore, CacheTask } from '../store';
-import { DownloadRecord } from '../lib/api';
+import { api, DownloadRecord } from '../lib/api';
 import {
   FiTrash2,
   FiSearch,
@@ -50,6 +50,8 @@ export const CacheManager: React.FC = () => {
     cacheStats,
     downloadProgress,
     cacheTasks,
+    currentEpisode,
+    currentPlayFlag,
     loadCachedFilesPaged,
     loadCacheStats,
     setCachePage,
@@ -63,9 +65,44 @@ export const CacheManager: React.FC = () => {
     addToast,
   } = useStore();
 
+  const [playHistory, setPlayHistory] = useState<Map<string, number>>(new Map());
+
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [searchInput, setSearchInput] = useState(cacheKeyword);
   const [deleting, setDeleting] = useState(false);
+
+  const loadPlayHistory = async () => {
+    try {
+      const entries = await api.getPlayHistory();
+      const map = new Map<string, number>();
+      for (const e of entries) {
+        if (e.progress > 0) map.set(e.episodeUrl, e.progress);
+      }
+      setPlayHistory(map);
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadPlayHistory();
+  }, []);
+
+  useEffect(() => {
+    if (currentPlayFlag === 'cache') loadPlayHistory();
+  }, [currentPlayFlag]);
+
+  const playedUrls = useMemo(() => {
+    const urls = new Set(playHistory.keys());
+    if (currentPlayFlag === 'cache' && currentEpisode?.url) {
+      urls.add(currentEpisode.url);
+    }
+    return urls;
+  }, [playHistory, currentPlayFlag, currentEpisode?.url]);
+
+  const isNowPlaying = (record: DownloadRecord) =>
+    currentPlayFlag === 'cache' && currentEpisode?.url === record.filePath;
+
+  const isPlayed = (record: DownloadRecord) =>
+    playedUrls.has(record.url) || playedUrls.has(record.filePath);
 
   const activeCacheTasks = useMemo(() => {
     return cacheTasks.filter(
@@ -311,7 +348,7 @@ export const CacheManager: React.FC = () => {
               </tr>
             ) : (
               displayRecords.map((record) => (
-                <tr key={record.id} className={selected.has(record.id) ? 'selected' : ''}>
+                <tr key={record.id} className={`${selected.has(record.id) ? 'selected' : ''}${isPlayed(record) ? ' played' : ''}${isNowPlaying(record) ? ' now-playing' : ''}`}>
                   <td className="cache-td-check">
                     <input
                       type="checkbox"

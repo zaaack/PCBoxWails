@@ -1048,7 +1048,6 @@ body {
   font-size: 20px;
   font-family: sans-serif;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
-  //background: rgba(0, 0, 0, 0.3);
   padding: 4px 10px;
   border-radius: 4px;
   z-index: 45;
@@ -1783,6 +1782,15 @@ select.settings-input {
 
 .cache-table tr.selected {
   background: rgba(var(--accent-rgb, 99, 102, 241), 0.1);
+}
+
+.cache-table tr.played {
+  background: rgba(34, 197, 94, 0.06);
+}
+
+.cache-table tr.now-playing {
+  background: rgba(34, 197, 94, 0.12);
+  border-left: 3px solid #22c55e;
 }
 
 .cache-th-check,
