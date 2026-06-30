@@ -88,7 +88,8 @@ func (dm *DownloadManager) GetCachedFile(rawURL string) string {
 	if result.Error != nil {
 		return ""
 	}
-	if _, err := os.Stat(record.FilePath); os.IsNotExist(err) {
+	absPath := filepath.Join(dm.cacheDir, record.FilePath)
+	if _, err := os.Stat(absPath); os.IsNotExist(err) {
 		return ""
 	}
 	return record.FilePath
@@ -134,7 +135,7 @@ func (dm *DownloadManager) DeleteCachedFile(rawURL string) bool {
 		return false
 	}
 	if record.FilePath != "" {
-		os.RemoveAll(record.FilePath)
+		os.RemoveAll(filepath.Join(dm.cacheDir, record.FilePath))
 		hlsDir := filepath.Join(dm.cacheDir, fmt.Sprintf("hls_%s", id[:8]))
 		os.RemoveAll(hlsDir)
 	}
@@ -149,7 +150,7 @@ func (dm *DownloadManager) DeleteCacheByID(id uint) bool {
 		return false
 	}
 	if record.FilePath != "" {
-		os.RemoveAll(record.FilePath)
+		os.RemoveAll(filepath.Join(dm.cacheDir, record.FilePath))
 	}
 	if record.IsHLS {
 		hlsDir := filepath.Join(dm.cacheDir, fmt.Sprintf("hls_%s", record.URLHash[:8]))
@@ -165,7 +166,7 @@ func (dm *DownloadManager) DeleteCacheBatch(ids []uint) int {
 	deleted := 0
 	for _, r := range records {
 		if r.FilePath != "" {
-			os.RemoveAll(r.FilePath)
+			os.RemoveAll(filepath.Join(dm.cacheDir, r.FilePath))
 		}
 		if r.IsHLS {
 			hlsDir := filepath.Join(dm.cacheDir, fmt.Sprintf("hls_%s", r.URLHash[:8]))
@@ -217,7 +218,7 @@ func (dm *DownloadManager) CancelDownload(id string) bool {
 	var record DownloadRecord
 	if dm.cacheDB.db.Where("url_hash = ?", id).First(&record).Error == nil {
 		if record.FilePath != "" {
-			os.RemoveAll(record.FilePath)
+			os.RemoveAll(filepath.Join(dm.cacheDir, record.FilePath))
 		}
 	}
 	return true
@@ -740,7 +741,7 @@ func (dm *DownloadManager) FindNextCachedEpisode(sourceKey string, playFlag stri
 	if result.Error != nil {
 		return nil
 	}
-	if _, err := os.Stat(record.FilePath); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dm.cacheDir, record.FilePath)); os.IsNotExist(err) {
 		return nil
 	}
 	return &record
