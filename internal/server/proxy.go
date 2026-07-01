@@ -30,14 +30,15 @@ type SSEEvent struct {
 }
 
 type ProxyServer struct {
-	sessions   map[string]*ProxySession
-	server     *http.Server
-	port       int
-	mu         sync.RWMutex
-	apiHandler http.Handler
-	sseClients map[chan SSEEvent]bool
-	sseMu      sync.Mutex
-	cacheDir   string
+	sessions    map[string]*ProxySession
+	server      *http.Server
+	port        int
+	mu          sync.RWMutex
+	apiHandler  http.Handler
+	sseClients  map[chan SSEEvent]bool
+	sseMu       sync.Mutex
+	cacheDir    string
+	bindAddress string
 }
 
 func NewProxyServer() *ProxyServer {
@@ -53,6 +54,21 @@ func (p *ProxyServer) SetCacheDir(dir string) {
 		p.cacheDir = absDir
 		log.Printf("[Proxy] SetCacheDir: %s", absDir)
 	}
+}
+
+func (p *ProxyServer) SetBindAddress(addr string) {
+	if addr == "" {
+		addr = "127.0.0.1"
+	}
+	p.bindAddress = addr
+	log.Printf("[Proxy] SetBindAddress: %s", addr)
+}
+
+func (p *ProxyServer) bindHost() string {
+	if p.bindAddress != "" {
+		return p.bindAddress
+	}
+	return "127.0.0.1"
 }
 
 func (p *ProxyServer) resolveLocalFile(filePath string) string {
@@ -269,7 +285,7 @@ func (p *ProxyServer) handleLocal(w http.ResponseWriter, r *http.Request) {
 			} else {
 				resolved = dir + trimmed
 			}
-			proxyURL := fmt.Sprintf("http://127.0.0.1:%d/local?u=%s", p.port, url.QueryEscape(resolved))
+			proxyURL := fmt.Sprintf("http://%s:%d/local?u=%s", p.bindHost(), p.port, url.QueryEscape(resolved))
 			log.Printf("[Proxy] handleLocal: seg %q -> %q", trimmed, proxyURL)
 			result = append(result, proxyURL)
 		}
@@ -317,7 +333,7 @@ func (p *ProxyServer) CreateSession(targetURL string, headers map[string]string)
 	p.sessions[id] = &ProxySession{URL: targetURL, Headers: headers}
 	p.mu.Unlock()
 
-	return fmt.Sprintf("http://127.0.0.1:%d/proxy?id=%s&u=%s", p.port, id, url.QueryEscape(targetURL))
+	return fmt.Sprintf("http://%s:%d/proxy?id=%s&u=%s", p.bindHost(), p.port, id, url.QueryEscape(targetURL))
 }
 
 func (p *ProxyServer) handleProxy(w http.ResponseWriter, r *http.Request) {
@@ -439,7 +455,7 @@ func (p *ProxyServer) rewriteM3U8(content string, sessionID string, baseM3U8URL 
 			resolvedURL = baseURL + trimmed
 		}
 
-		proxyURL := fmt.Sprintf("http://127.0.0.1:%d/proxy?id=%s&u=%s", p.port, sessionID, url.QueryEscape(resolvedURL))
+		proxyURL := fmt.Sprintf("http://%s:%d/proxy?id=%s&u=%s", p.bindHost(), p.port, sessionID, url.QueryEscape(resolvedURL))
 		result = append(result, proxyURL)
 	}
 

@@ -125,6 +125,9 @@ func (a *ServerApp) GetSelectedLanIp() string {
 
 func (a *ServerApp) SetSelectedLanIp(ip string) {
 	a.selectedLanIp = ip
+	if a.proxyServer != nil {
+		a.proxyServer.SetBindAddress(ip)
+	}
 }
 
 func (a *ServerApp) GetClients() []server.ClientInfo {
