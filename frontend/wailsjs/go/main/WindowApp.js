@@ -22,6 +22,10 @@ export function DeleteCachedFile(arg1) {
   return window['go']['main']['WindowApp']['DeleteCachedFile'](arg1);
 }
 
+export function DeletePlayHistory(arg1, arg2) {
+  return window['go']['main']['WindowApp']['DeletePlayHistory'](arg1, arg2);
+}
+
 export function DownloadVideo(arg1, arg2, arg3) {
   return window['go']['main']['WindowApp']['DownloadVideo'](arg1, arg2, arg3);
 }

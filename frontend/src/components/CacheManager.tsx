@@ -248,7 +248,7 @@ export const CacheManager: React.FC = () => {
         return <span className="cache-badge badge-completed"><FiCheck size={10} /> Cached</span>;
       case 'downloading': {
         const prog = downloadProgress.get(record.urlHash);
-        const pct = prog ? Math.round(prog.progress) : Math.round(record.progress || 0);
+        const pct = Math.min(100, Math.max(0, Math.round(prog ? prog.progress : (record.progress || 0))));
         return (
           <span className="cache-badge badge-downloading">
             <FiLoader size={10} className="spin" /> {pct}%

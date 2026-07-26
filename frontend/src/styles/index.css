@@ -1307,6 +1307,7 @@ body {
 }
 
 .history-item {
+  position: relative;
   display: flex;
   gap: 12px;
   padding: 12px;
@@ -1318,6 +1319,35 @@ body {
 
 .history-item:hover {
   background: var(--bg-hover);
+}
+
+.history-delete-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.2s;
+}
+
+.history-item:hover .history-delete-btn {
+  opacity: 1;
+}
+
+.history-delete-btn:hover {
+  background: #ff4757;
+  color: white;
 }
 
 .history-poster {

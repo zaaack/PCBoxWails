@@ -2,6 +2,7 @@ package server
 
 import (
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -285,7 +286,7 @@ func (p *ProxyServer) handleLocal(w http.ResponseWriter, r *http.Request) {
 			} else {
 				resolved = dir + trimmed
 			}
-			proxyURL := fmt.Sprintf("http://%s:%d/local?u=%s", p.bindHost(), p.port, url.QueryEscape(resolved))
+			proxyURL := fmt.Sprintf("http://%s/local?u=%s", r.Host, url.QueryEscape(resolved))
 			log.Printf("[Proxy] handleLocal: seg %q -> %q", trimmed, proxyURL)
 			result = append(result, proxyURL)
 		}
@@ -326,19 +327,51 @@ func (p *ProxyServer) handleLocal(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, stat.Name(), stat.ModTime(), f)
 }
 
-func (p *ProxyServer) CreateSession(targetURL string, headers map[string]string) string {
+func (p *ProxyServer) CreateSession(targetURL string, headers map[string]string, host string) string {
 	id := fmt.Sprintf("%d", time.Now().UnixNano())
 
 	p.mu.Lock()
 	p.sessions[id] = &ProxySession{URL: targetURL, Headers: headers}
 	p.mu.Unlock()
 
-	return fmt.Sprintf("http://%s:%d/proxy?id=%s&u=%s", p.bindHost(), p.port, id, url.QueryEscape(targetURL))
+	if host == "" {
+		host = fmt.Sprintf("%s:%d", p.bindHost(), p.port)
+	}
+	return fmt.Sprintf("http://%s/proxy?id=%s&u=%s", host, id, url.QueryEscape(targetURL))
 }
 
 func (p *ProxyServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("id")
 	targetURLStr := r.URL.Query().Get("u")
+
+	// Support TV-K mobile app format: ?do=m3u8&url=...&headers=base64
+	if sessionID == "" && targetURLStr == "" {
+		if doType := r.URL.Query().Get("do"); doType != "" {
+			if rawURL := r.URL.Query().Get("url"); rawURL != "" {
+				targetURLStr = rawURL
+				headersB64 := r.URL.Query().Get("headers")
+				sessionHeaders := make(map[string]string)
+				if headersB64 != "" {
+					if decoded, err := base64.StdEncoding.DecodeString(headersB64); err == nil {
+						lines := strings.Split(string(decoded), "\n")
+						for _, line := range lines {
+							line = strings.TrimSpace(line)
+							if line == "" {
+								continue
+							}
+							if idx := strings.Index(line, ":"); idx > 0 {
+								sessionHeaders[strings.TrimSpace(line[:idx])] = strings.TrimSpace(line[idx+1:])
+							}
+						}
+					}
+				}
+				sessionID = fmt.Sprintf("%d", time.Now().UnixNano())
+				p.mu.Lock()
+				p.sessions[sessionID] = &ProxySession{URL: targetURLStr, Headers: sessionHeaders}
+				p.mu.Unlock()
+			}
+		}
+	}
 
 	if sessionID == "" || targetURLStr == "" {
 		http.Error(w, "Missing id or u parameter", http.StatusBadRequest)
@@ -415,7 +448,7 @@ func (p *ProxyServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Headers", "*")
 
 	if isM3U8 {
-		rewritten := p.rewriteM3U8(string(body), sessionID, targetURLStr)
+		rewritten := p.rewriteM3U8(string(body), sessionID, targetURLStr, r.Host)
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(rewritten)))
 		w.WriteHeader(proxyRes.StatusCode)
 		w.Write([]byte(rewritten))
@@ -425,7 +458,7 @@ func (p *ProxyServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (p *ProxyServer) rewriteM3U8(content string, sessionID string, baseM3U8URL string) string {
+func (p *ProxyServer) rewriteM3U8(content string, sessionID string, baseM3U8URL string, host string) string {
 	baseURL := baseM3U8URL
 	if idx := strings.LastIndex(baseM3U8URL, "/"); idx >= 0 {
 		baseURL = baseM3U8URL[:idx+1]
@@ -455,7 +488,7 @@ func (p *ProxyServer) rewriteM3U8(content string, sessionID string, baseM3U8URL 
 			resolvedURL = baseURL + trimmed
 		}
 
-		proxyURL := fmt.Sprintf("http://%s:%d/proxy?id=%s&u=%s", p.bindHost(), p.port, sessionID, url.QueryEscape(resolvedURL))
+		proxyURL := fmt.Sprintf("http://%s/proxy?id=%s&u=%s", host, sessionID, url.QueryEscape(resolvedURL))
 		result = append(result, proxyURL)
 	}
 

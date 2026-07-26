@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useStore } from '../store';
-import { api } from '../lib/api';
+import { api, proxyUrl } from '../lib/api';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import 'videojs-hotkeys';
@@ -313,11 +313,11 @@ export const PlayerView: React.FC = () => {
       const record = await api.findDownloadRecordByFilePath(currentEpisode.url);
       if (!record || !record.sourceKey || !record.playFlag) return;
 
-      const nextIndex = currentEpisodeIndex + 1;
+      const nextIndex = record.episodeIndex != null ? record.episodeIndex + 1 : currentEpisodeIndex + 1;
       const nextRecord = await api.findNextCachedEpisode(record.sourceKey, record.playFlag, nextIndex);
       if (nextRecord && nextRecord.filePath) {
         const port = await api.getProxyPort();
-        const fileUrl = `http://127.0.0.1:${port}/local?u=${encodeURIComponent(nextRecord.filePath)}`;
+        const fileUrl = proxyUrl(port, `/local?u=${encodeURIComponent(nextRecord.filePath)}`);
         handlePlayEpisode(
           { name: nextRecord.videoName, url: nextRecord.filePath },
           nextIndex,
@@ -352,12 +352,12 @@ export const PlayerView: React.FC = () => {
       const record = await api.findDownloadRecordByFilePath(currentEpisode.url);
       if (!record || !record.sourceKey || !record.playFlag) return;
 
-      const prevIndex = currentEpisodeIndex - 1;
+      const prevIndex = record.episodeIndex != null ? record.episodeIndex - 1 : currentEpisodeIndex - 1;
       if (prevIndex < 0) return;
       const prevRecord = await api.findNextCachedEpisode(record.sourceKey, record.playFlag, prevIndex);
       if (prevRecord && prevRecord.filePath) {
         const port = await api.getProxyPort();
-        const fileUrl = `http://127.0.0.1:${port}/local?u=${encodeURIComponent(prevRecord.filePath)}`;
+        const fileUrl = proxyUrl(port, `/local?u=${encodeURIComponent(prevRecord.filePath)}`);
         handlePlayEpisode(
           { name: prevRecord.videoName, url: prevRecord.filePath },
           prevIndex,
@@ -407,7 +407,7 @@ export const PlayerView: React.FC = () => {
       if (cachedFile) {
         console.log('[PCBox] Using cached file:', cachedFile);
         const port = await api.getProxyPort();
-        finalUrl = `http://127.0.0.1:${port}/local?u=${encodeURIComponent(cachedFile)}`;
+        finalUrl = proxyUrl(port, `/local?u=${encodeURIComponent(cachedFile)}`);
         finalHeaders = {};
       }
 

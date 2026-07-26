@@ -6,6 +6,11 @@ if (w.go) {
 }
 export const isWeb = !(window as any).go?.main?.App;
 
+export function proxyUrl(port: number, path: string): string {
+  const host = isWeb ? window.location.hostname : '127.0.0.1';
+  return `http://${host}:${port}${path}`;
+}
+
 export interface CachedVideo {
   id: string;
   url: string;
@@ -34,6 +39,11 @@ export interface DownloadRecord {
   status: string;
   progress: number;
   error?: string;
+  sourceKey?: string;
+  playFlag?: string;
+  episodeIndex?: number;
+  vodId?: string;
+  vodPic?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -100,6 +110,7 @@ declare global {
           DownloadVideoWithMeta(url: string, headers: Record<string, string>, videoName: string, sourceKey: string, playFlag: string, episodeIndex: number, vodId: string, vodPic: string): Promise<string>;
           SavePlayHistory(entry: PlayHistoryEntry): Promise<boolean>;
           GetPlayHistory(): Promise<PlayHistoryEntry[]>;
+          DeletePlayHistory(sourceKey: string, episodeUrl: string): Promise<boolean>;
           FindNextCachedEpisode(sourceKey: string, playFlag: string, episodeIndex: number): Promise<DownloadRecord | null>;
           FindDownloadRecordByFilePath(filePath: string): Promise<DownloadRecord | null>;
           GetLocalIps(): Promise<string[]>;
@@ -219,6 +230,8 @@ const httpAPI = {
     httpPost('SavePlayHistory', entry),
   getPlayHistory: () =>
     httpPost('GetPlayHistory'),
+  deletePlayHistory: (sourceKey: string, episodeUrl: string) =>
+    httpPost('DeletePlayHistory', { sourceKey, episodeUrl }),
   findNextCachedEpisode: (sourceKey: string, playFlag: string, episodeIndex: number) =>
     httpPost('FindNextCachedEpisode', { sourceKey, playFlag, episodeIndex }),
   findDownloadRecordByFilePath: (filePath: string) =>
@@ -244,8 +257,15 @@ export const api = {
     isWeb ? httpAPI.getClients() : window.go.main.App.GetClients(),
   sendMessage: (clientId: string, code: number, data: any) =>
     isWeb ? httpAPI.sendMessage(clientId, code, data) : window.go.main.App.SendMessage(clientId, code, data),
-  createProxySession: (url: string, headers: Record<string, string>) =>
-    isWeb ? httpAPI.createProxySession(url, headers) : window.go.main.App.CreateProxySession(url, headers),
+  createProxySession: async (url: string, headers: Record<string, string>) => {
+    const result = isWeb
+      ? await httpAPI.createProxySession(url, headers)
+      : await window.go.main.App.CreateProxySession(url, headers);
+    if (result && isWeb) {
+      return result.replace(/127\.0\.0\.1/g, window.location.hostname);
+    }
+    return result;
+  },
   getProxyPort: () =>
     isWeb ? httpAPI.getProxyPort() : window.go.main.App.GetProxyPort(),
   setCacheDir: (dir: string) =>
@@ -292,6 +312,9 @@ export const api = {
 
   getPlayHistory: () =>
     isWeb ? httpAPI.getPlayHistory() : window.go.main.App.GetPlayHistory(),
+
+  deletePlayHistory: (sourceKey: string, episodeUrl: string) =>
+    isWeb ? httpAPI.deletePlayHistory(sourceKey, episodeUrl) : window.go.main.App.DeletePlayHistory(sourceKey, episodeUrl),
 
   findNextCachedEpisode: (sourceKey: string, playFlag: string, episodeIndex: number) =>
     isWeb ? httpAPI.findNextCachedEpisode(sourceKey, playFlag, episodeIndex) : window.go.main.App.FindNextCachedEpisode(sourceKey, playFlag, episodeIndex),

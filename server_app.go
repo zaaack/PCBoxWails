@@ -15,7 +15,7 @@ import (
 	"PcBoxWails/internal/server"
 )
 
-const defaultProxyPort = 9897
+const defaultProxyPort = 9978
 
 type ServerApp struct {
 	wsServer        *server.WsServer
@@ -174,11 +174,11 @@ func (a *ServerApp) SendMessage(clientID string, code int, data interface{}) boo
 	return a.wsServer.SendMessage(clientID, code, data)
 }
 
-func (a *ServerApp) CreateProxySession(url string, headers map[string]string) string {
+func (a *ServerApp) CreateProxySession(url string, headers map[string]string, host string) string {
 	if a.proxyServer == nil {
 		return ""
 	}
-	return a.proxyServer.CreateSession(url, headers)
+	return a.proxyServer.CreateSession(url, headers, host)
 }
 
 func (a *ServerApp) GetProxyPort() int {
@@ -333,6 +333,13 @@ func (a *ServerApp) GetPlayHistory() []*PlayHistoryEntry {
 	return a.downloadManager.GetPlayHistory()
 }
 
+func (a *ServerApp) DeletePlayHistory(sourceKey string, episodeUrl string) bool {
+	if a.downloadManager == nil {
+		return false
+	}
+	return a.downloadManager.DeletePlayHistory(sourceKey, episodeUrl)
+}
+
 func (a *ServerApp) FindNextCachedEpisode(sourceKey string, playFlag string, episodeIndex int) *DownloadRecord {
 	if a.downloadManager == nil {
 		return nil
@@ -442,7 +449,7 @@ func (a *ServerApp) makeHTTPHandler() http.Handler {
 			Headers map[string]string `json:"headers"`
 		}
 		readJSON(r, &p)
-		writeJSON(w, a.CreateProxySession(p.URL, p.Headers))
+		writeJSON(w, a.CreateProxySession(p.URL, p.Headers, r.Host))
 	})
 
 	mux.HandleFunc("/GetProxyPort", func(w http.ResponseWriter, r *http.Request) {
@@ -619,6 +626,19 @@ func (a *ServerApp) makeHTTPHandler() http.Handler {
 		writeJSON(w, a.GetPlayHistory())
 	})
 
+	mux.HandleFunc("/DeletePlayHistory", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" { http.Error(w, "POST required", 405); return }
+		var p struct {
+			SourceKey  string `json:"sourceKey"`
+			EpisodeUrl string `json:"episodeUrl"`
+		}
+		if err := readJSON(r, &p); err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		writeJSON(w, a.DeletePlayHistory(p.SourceKey, p.EpisodeUrl))
+	})
+
 	mux.HandleFunc("/FindNextCachedEpisode", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" { http.Error(w, "POST required", 405); return }
 		var p struct {
@@ -726,7 +746,7 @@ func registerIPCMethods(srv *ServerApp, ipcSrv *ipc.IPCServer) {
 		if err := json.Unmarshal(args, &p); err != nil {
 			return nil, err
 		}
-		return srv.CreateProxySession(p.URL, p.Headers), nil
+		return srv.CreateProxySession(p.URL, p.Headers, ""), nil
 	})
 
 	ipcSrv.RegisterMethod("GetProxyPort", func(args json.RawMessage) (interface{}, error) {
@@ -898,6 +918,17 @@ func registerIPCMethods(srv *ServerApp, ipcSrv *ipc.IPCServer) {
 
 	ipcSrv.RegisterMethod("GetPlayHistory", func(args json.RawMessage) (interface{}, error) {
 		return srv.GetPlayHistory(), nil
+	})
+
+	ipcSrv.RegisterMethod("DeletePlayHistory", func(args json.RawMessage) (interface{}, error) {
+		var p struct {
+			SourceKey  string `json:"sourceKey"`
+			EpisodeUrl string `json:"episodeUrl"`
+		}
+		if err := json.Unmarshal(args, &p); err != nil {
+			return nil, err
+		}
+		return srv.DeletePlayHistory(p.SourceKey, p.EpisodeUrl), nil
 	})
 
 	ipcSrv.RegisterMethod("FindNextCachedEpisode", func(args json.RawMessage) (interface{}, error) {

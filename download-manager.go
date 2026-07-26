@@ -17,6 +17,10 @@ import (
 
 const defaultUA2 = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
 
+const (
+	hlsConcurrentDownloads = 3
+)
+
 type DownloadProgress struct {
 	ID       string  `json:"id"`
 	Progress float64 `json:"progress"`
@@ -492,6 +496,7 @@ func (dm *DownloadManager) downloadHLS(id string, m3u8URL string, headers map[st
 		emitProgress(id, *dm.downloads[id])
 	}
 
+	log.Printf("[Cache] HLS: headers being sent: %v", headers)
 	m3u8Content, err := dm.downloadURL(m3u8URL, headers)
 	if err != nil {
 		log.Printf("[Cache] HLS: failed to download m3u8: %v", err)
@@ -499,49 +504,119 @@ func (dm *DownloadManager) downloadHLS(id string, m3u8URL string, headers map[st
 		return
 	}
 
-	log.Printf("[Cache] HLS: m3u8 downloaded (%d bytes), parsing...", len(m3u8Content))
+	preview := string(m3u8Content)
+	if len(preview) > 500 {
+		preview = preview[:500]
+	}
+	log.Printf("[Cache] HLS: m3u8 downloaded (%d bytes), content preview:\n%s", len(m3u8Content), preview)
 
-	segments := dm.parseM3U8(string(m3u8Content), m3u8URL)
+	m3u8ContentStr := string(m3u8Content)
+	segments, mediaPlaylistContent := dm.parseM3U8WithMasterDetection(m3u8ContentStr, m3u8URL, headers)
+
 	if len(segments) == 0 {
 		dm.failDownload(id, "no segments found", emitProgress)
 		return
 	}
 
-	log.Printf("[Cache] HLS: Found %d segments for %s", len(segments), videoName)
+	effectiveM3U8 := m3u8ContentStr
+	if mediaPlaylistContent != "" {
+		effectiveM3U8 = mediaPlaylistContent
+	}
+
+	log.Printf("[Cache] HLS: Found %d segments for %s, using %d concurrent workers", len(segments), videoName, hlsConcurrentDownloads)
+	if len(segments) > 0 {
+		log.Printf("[Cache] HLS: first segment URL: %s", segments[0])
+	}
 
 	var totalSize int64
+	var totalSizeMu sync.Mutex
+	var existingCount int64
+	var completedCount int64
+	var completedCountMu sync.Mutex
+
+	sem := make(chan struct{}, hlsConcurrentDownloads)
+	var wg sync.WaitGroup
+	var segmentErrors []string
+	var segmentErrorsMu sync.Mutex
+
 	for i, segURL := range segments {
 		segFile := filepath.Join(hlsDir, fmt.Sprintf("seg_%05d.ts", i))
-		if _, err := os.Stat(segFile); err == nil {
-			totalSize += func() int64 {
-				fi, _ := os.Stat(segFile)
-				if fi != nil {
-					return fi.Size()
+		if fi, err := os.Stat(segFile); err == nil && fi.Size() > 0 {
+			if existingData, readErr := os.ReadFile(segFile); readErr == nil && len(existingData) > 4 {
+				if string(existingData[:4]) == "#EXT" || string(existingData[:7]) == "#EXTM3U" {
+					log.Printf("[Cache] HLS segment %d has invalid cached content (m3u8), re-downloading", i)
+					os.Remove(segFile)
+				} else {
+					totalSizeMu.Lock()
+					totalSize += fi.Size()
+					totalSizeMu.Unlock()
+					existingCount++
+					continue
 				}
-				return 0
-			}()
-			continue
+			}
 		}
-		segData, err := dm.downloadURL(segURL, headers)
-		if err != nil {
-			log.Printf("[Cache] HLS segment %d failed: %v", i, err)
-			dm.updateProgress(id, float64(i+1)/float64(len(segments))*100, "downloading", "")
+
+		wg.Add(1)
+		go func(idx int, segURL string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			var segData []byte
+			var dlErr error
+			for retry := 0; retry < 5; retry++ {
+				segData, dlErr = dm.downloadURL(segURL, headers)
+				if dlErr == nil {
+					preview := string(segData)
+					if len(preview) > 20 {
+						preview = preview[:20]
+					}
+					if strings.HasPrefix(string(segData), "#EXTM3U") || strings.HasPrefix(string(segData), "#EXT") {
+						log.Printf("[Cache] HLS segment %d got m3u8 content instead of ts (attempt %d, %d bytes), retrying...", idx, retry+1, len(segData))
+						dlErr = fmt.Errorf("CDN returned m3u8 instead of ts")
+						time.Sleep(time.Duration(retry+1) * 3 * time.Second)
+						continue
+					}
+					log.Printf("[Cache] HLS segment %d: %d bytes, header: %s", idx, len(segData), preview)
+					break
+				}
+				log.Printf("[Cache] HLS segment %d failed (attempt %d): %v", idx, retry+1, dlErr)
+				time.Sleep(time.Duration(retry+1) * 2 * time.Second)
+			}
+			if dlErr != nil {
+				segmentErrorsMu.Lock()
+				segmentErrors = append(segmentErrors, fmt.Sprintf("segment %d: %v", idx, dlErr))
+				segmentErrorsMu.Unlock()
+				return
+			}
+
+			os.WriteFile(segFile, segData, 0644)
+
+			totalSizeMu.Lock()
+			totalSize += int64(len(segData))
+			totalSizeMu.Unlock()
+
+			completedCountMu.Lock()
+			completedCount++
+			progress := float64(existingCount+completedCount) / float64(len(segments)) * 100
+			completedCountMu.Unlock()
+
+			dm.updateProgress(id, progress, "downloading", "")
 			if emitProgress != nil {
 				emitProgress(id, *dm.downloads[id])
 			}
-			continue
-		}
-		os.WriteFile(segFile, segData, 0644)
-		totalSize += int64(len(segData))
-
-		progress := float64(i+1) / float64(len(segments)) * 100
-		dm.updateProgress(id, progress, "downloading", "")
-		if emitProgress != nil {
-			emitProgress(id, *dm.downloads[id])
-		}
+		}(i, segURL)
 	}
 
-	localM3U8 := dm.rewriteM3U8ToLocal(string(m3u8Content), hlsDir)
+	wg.Wait()
+
+	if len(segmentErrors) > 0 {
+		log.Printf("[Cache] HLS: %d segment errors: %s", len(segmentErrors), strings.Join(segmentErrors, "; "))
+		dm.failDownload(id, fmt.Sprintf("failed segments: %s", strings.Join(segmentErrors, "; ")), emitProgress)
+		return
+	}
+
+	localM3U8 := dm.rewriteM3U8ToLocal(effectiveM3U8, hlsDir)
 	localM3U8Path := filepath.Join(hlsDir, "playlist.m3u8")
 	os.WriteFile(localM3U8Path, []byte(localM3U8), 0644)
 
@@ -588,6 +663,11 @@ func (dm *DownloadManager) downloadURL(rawURL string, headers map[string]string)
 	if req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", defaultUA2)
 	}
+	if req.Header.Get("Referer") == "" {
+		if parsed, err := url.Parse(rawURL); err == nil && parsed.Host != "" {
+			req.Header.Set("Referer", fmt.Sprintf("%s://%s/", parsed.Scheme, parsed.Host))
+		}
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -597,12 +677,22 @@ func (dm *DownloadManager) downloadURL(rawURL string, headers map[string]string)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("[Cache] downloadURL: HTTP %d for %s", resp.StatusCode, rawURL[:min(80, len(rawURL))])
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("[Cache] downloadURL: HTTP %d for %s, body: %s", resp.StatusCode, rawURL[:min(80, len(rawURL))], string(body[:min(200, len(body))]))
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
 	log.Printf("[Cache] downloadURL: success, reading body...")
-	return io.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("[Cache] downloadURL: read body failed: %v", err)
+		return nil, err
+	}
+	if ct := resp.Header.Get("Content-Type"); strings.Contains(ct, "mpegurl") || strings.Contains(ct, "x-mpegurl") {
+		log.Printf("[Cache] downloadURL: got m3u8 content (Content-Type: %s) for ts request, likely missing headers", ct)
+	}
+	log.Printf("[Cache] downloadURL: read %d bytes", len(data))
+	return data, nil
 }
 
 func (dm *DownloadManager) parseM3U8(content string, baseM3U8URL string) []string {
@@ -633,6 +723,83 @@ func (dm *DownloadManager) parseM3U8(content string, baseM3U8URL string) []strin
 	}
 
 	return segments
+}
+
+func (dm *DownloadManager) isMasterPlaylist(content string) bool {
+	return strings.Contains(content, "#EXT-X-STREAM-INF")
+}
+
+func (dm *DownloadManager) parseMasterPlaylistVariants(content string, baseM3U8URL string) []string {
+	baseURL := baseM3U8URL
+	if idx := strings.LastIndex(baseM3U8URL, "/"); idx >= 0 {
+		baseURL = baseM3U8URL[:idx+1]
+	}
+
+	lines := strings.Split(content, "\n")
+	var variants []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+
+		if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
+			variants = append(variants, trimmed)
+		} else if strings.HasPrefix(trimmed, "/") {
+			parsedBase, err := url.Parse(baseM3U8URL)
+			if err == nil {
+				variants = append(variants, fmt.Sprintf("%s://%s%s", parsedBase.Scheme, parsedBase.Host, trimmed))
+			}
+		} else {
+			variants = append(variants, baseURL+trimmed)
+		}
+	}
+
+	return variants
+}
+
+func (dm *DownloadManager) parseM3U8WithMasterDetection(content string, baseM3U8URL string, headers map[string]string) ([]string, string) {
+	if !dm.isMasterPlaylist(content) {
+		return dm.parseM3U8(content, baseM3U8URL), ""
+	}
+
+	log.Printf("[Cache] HLS: detected master playlist, fetching variant playlists...")
+	variants := dm.parseMasterPlaylistVariants(content, baseM3U8URL)
+	if len(variants) == 0 {
+		log.Printf("[Cache] HLS: master playlist has no variants, falling back to flat parse")
+		return dm.parseM3U8(content, baseM3U8URL), ""
+	}
+
+	log.Printf("[Cache] HLS: found %d variant playlists, selecting first (bandwidth-based selection not implemented)", len(variants))
+
+	var allSegments []string
+	var effectiveMediaPlaylist string
+
+	for i, variantURL := range variants {
+		log.Printf("[Cache] HLS: fetching variant playlist %d: %s", i, variantURL)
+		variantContent, err := dm.downloadURL(variantURL, headers)
+		if err != nil {
+			log.Printf("[Cache] HLS: failed to fetch variant playlist %d: %v, skipping", i, err)
+			continue
+		}
+
+		variantStr := string(variantContent)
+		segments := dm.parseM3U8(variantStr, variantURL)
+		log.Printf("[Cache] HLS: variant %d has %d segments", i, len(segments))
+
+		if len(segments) > 0 && len(allSegments) == 0 {
+			allSegments = segments
+			effectiveMediaPlaylist = variantStr
+		}
+	}
+
+	if len(allSegments) == 0 {
+		log.Printf("[Cache] HLS: no segments found in any variant, falling back to flat parse")
+		return dm.parseM3U8(content, baseM3U8URL), ""
+	}
+
+	return allSegments, effectiveMediaPlaylist
 }
 
 func (dm *DownloadManager) rewriteM3U8ToLocal(content string, hlsDir string) string {
@@ -720,6 +887,26 @@ func (dm *DownloadManager) GetPlayHistory() []*PlayHistoryEntry {
 		return []*PlayHistoryEntry{}
 	}
 	return entries
+}
+
+func (dm *DownloadManager) DeletePlayHistory(sourceKey string, episodeUrl string) bool {
+	entries := dm.loadAllHistory()
+	if entries == nil {
+		return false
+	}
+	found := false
+	newEntries := make([]*PlayHistoryEntry, 0, len(entries))
+	for _, e := range entries {
+		if e.SourceKey == sourceKey && e.EpisodeUrl == episodeUrl {
+			found = true
+			continue
+		}
+		newEntries = append(newEntries, e)
+	}
+	if found {
+		dm.saveAllHistory(newEntries)
+	}
+	return found
 }
 
 func (dm *DownloadManager) FindDownloadRecordByFilePath(filePath string) *DownloadRecord {

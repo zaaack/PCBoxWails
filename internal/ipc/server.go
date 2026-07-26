@@ -22,6 +22,7 @@ type IPCServer struct {
 	upgrader  websocket.Upgrader
 	clients   map[*websocket.Conn]bool
 	clientsMu sync.RWMutex
+	writeMu   sync.Mutex
 	port      int
 }
 
@@ -42,6 +43,8 @@ func (s *IPCServer) EmitEvent(name string, data interface{}) {
 	defer s.clientsMu.RUnlock()
 
 	msg, _ := json.Marshal(Event{Name: name, Data: data})
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
 	for conn := range s.clients {
 		if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
 			log.Printf("[IPC] Failed to send event: %v", err)

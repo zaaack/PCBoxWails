@@ -126,7 +126,7 @@ func (a *App) CreateProxySession(url string, headers map[string]string) string {
 	if a.proxyServer == nil {
 		return ""
 	}
-	return a.proxyServer.CreateSession(url, headers)
+	return a.proxyServer.CreateSession(url, headers, "")
 }
 
 func (a *App) GetProxyPort() int {

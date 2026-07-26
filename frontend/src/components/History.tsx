@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useStore } from '../store';
 
 export const History: React.FC = () => {
-  const { history, setViewMode, setCurrentVideo, setCurrentSource, sources, loadHistory, loadDetailContent, connectedClient, setHistoryHighlightEpisode } = useStore();
+  const { history, setViewMode, setCurrentVideo, setCurrentSource, sources, loadHistory, loadDetailContent, connectedClient, setHistoryHighlightEpisode, deleteHistoryItem } = useStore();
 
   const getSourceName = (sourceKey: string) => {
     const source = sources.find((s) => s.key === sourceKey);
@@ -85,7 +85,18 @@ export const History: React.FC = () => {
 
       {connectedClient && history.length > 0 && (
         <div className="history-list">
-          {history.map((item, index) => (
+          {history.reduce<{ item: any; originalIndex: number }[]>((acc, item, index) => {
+            const existing = acc.find((a) => a.item.id === item.id);
+            if (existing) {
+              if (item.timestamp > existing.item.timestamp) {
+                existing.item = item;
+                existing.originalIndex = index;
+              }
+            } else {
+              acc.push({ item, originalIndex: index });
+            }
+            return acc;
+          }, []).map(({ item, originalIndex: index }) => (
             <div
               key={`${item.id || index}-${index}`}
               className="history-item"
@@ -114,6 +125,17 @@ export const History: React.FC = () => {
                   {formatTime(item.progress)} / {formatTime(item.duration)}
                 </p>
               </div>
+              <button
+                className="history-delete-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm(`Delete "${item.name}" from history?`)) {
+                    deleteHistoryItem(index);
+                  }
+                }}
+              >
+                ×
+              </button>
             </div>
           ))}
         </div>

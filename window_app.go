@@ -365,6 +365,18 @@ func (a *WindowApp) GetPlayHistory() []map[string]interface{} {
 	return toSlice(result)
 }
 
+func (a *WindowApp) DeletePlayHistory(sourceKey string, episodeUrl string) bool {
+	result, err := a.ipcClient.Call("DeletePlayHistory", map[string]interface{}{
+		"sourceKey":  sourceKey,
+		"episodeUrl": episodeUrl,
+	})
+	if err != nil {
+		log.Printf("[Window] DeletePlayHistory error: %v", err)
+		return false
+	}
+	return toBool(result)
+}
+
 func (a *WindowApp) FindNextCachedEpisode(sourceKey string, playFlag string, episodeIndex int) map[string]interface{} {
 	result, err := a.ipcClient.Call("FindNextCachedEpisode", map[string]interface{}{
 		"sourceKey":    sourceKey,

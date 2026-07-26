@@ -21,7 +21,7 @@ var (
 	windowCmd *exec.Cmd
 )
 
-const defaultProxyPort = 9897
+const defaultProxyPort = 9978
 
 type ServerApp struct {
 	wsServer      *server.WsServer
@@ -148,11 +148,11 @@ func (a *ServerApp) SendMessage(clientID string, code int, data interface{}) boo
 	return a.wsServer.SendMessage(clientID, code, data)
 }
 
-func (a *ServerApp) CreateProxySession(url string, headers map[string]string) string {
+func (a *ServerApp) CreateProxySession(url string, headers map[string]string, host string) string {
 	if a.proxyServer == nil {
 		return ""
 	}
-	return a.proxyServer.CreateSession(url, headers)
+	return a.proxyServer.CreateSession(url, headers, host)
 }
 
 func (a *ServerApp) GetProxyPort() int {
@@ -318,7 +318,7 @@ func registerIPCMethods() {
 		if err := json.Unmarshal(args, &p); err != nil {
 			return nil, err
 		}
-		return srv.CreateProxySession(p.URL, p.Headers), nil
+		return srv.CreateProxySession(p.URL, p.Headers, ""), nil
 	})
 
 	ipcSrv.RegisterMethod("GetProxyPort", func(args json.RawMessage) (interface{}, error) {

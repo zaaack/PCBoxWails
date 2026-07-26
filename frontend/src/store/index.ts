@@ -16,7 +16,7 @@ import {
   TvBoxMovieSort,
   TvBoxVideo,
 } from '../lib/converter';
-import { api, isWeb, CachedVideo, DownloadProgress, DownloadRecord, PagedResult, CacheStats } from '../lib/api';
+import { api, isWeb, proxyUrl, CachedVideo, DownloadProgress, DownloadRecord, PagedResult, CacheStats } from '../lib/api';
 
 export interface CacheTask {
   epKey: string;
@@ -47,6 +47,7 @@ const MessageCodes = {
   GET_SEARCH_CONTENT: 213,
   SAVE_PLAY_HISTORY: 215,
   GET_ONE_PLAY_HISTORY: 225,
+  DELETE_PLAY_HISTORY: 217,
 } as const;
 
 const SEARCH_CONFIG_KEY = 'pcbox_search_config';
@@ -78,12 +79,10 @@ function saveSearchConfig(config: SearchConfig): void {
 }
 
 function loadTheme(): ThemeMode {
-  try {
-    const raw = localStorage.getItem(THEME_KEY);
-    if (raw === 'light' || raw === 'dark' || raw === 'system') {
-      return raw;
-    }
-  } catch {}
+  const raw = localStorage.getItem(THEME_KEY);
+  if (raw === 'light' || raw === 'dark' || raw === 'system') {
+    return raw;
+  }
   return 'system';
 }
 
@@ -243,6 +242,7 @@ interface AppState {
 
   history: VodInfo[];
   setHistory: (history: VodInfo[]) => void;
+  deleteHistoryItem: (index: number) => void;
 
   historyHighlightEpisode: { playFlag: string; episodeUrl: string; progress?: number } | null;
   setHistoryHighlightEpisode: (info: { playFlag: string; episodeUrl: string; progress?: number } | null) => void;
@@ -398,7 +398,7 @@ export const useStore = create<AppState>((set, get) => ({
     set({ currentEpisode: episode, currentEpisodeIndex: episodeIndex, currentPlayFlag: playFlag, playUrl: url, playHeaders: headers }),
   playFromCache: async (filePath, isHLS, videoName) => {
     const port = await api.getProxyPort();
-    const fileUrl = `http://127.0.0.1:${port}/local?u=${encodeURIComponent(filePath)}`;
+    const fileUrl = proxyUrl(port, `/local?u=${encodeURIComponent(filePath)}`);
     set({
       playUrl: fileUrl,
       playHeaders: {},
@@ -416,6 +416,22 @@ export const useStore = create<AppState>((set, get) => ({
 
   history: [],
   setHistory: (history) => set({ history }),
+  deleteHistoryItem: (index) => {
+    const state = get();
+    const item = state.history[index];
+    if (item && state.connectedClient) {
+      api.sendMessage(
+        state.connectedClient.id,
+        MessageCodes.DELETE_PLAY_HISTORY,
+        { sourceKey: item.sourceKey, episodeUrl: item.episodeUrl }
+      );
+    }
+    if (item) {
+      api.deletePlayHistory(item.sourceKey || '', item.episodeUrl || '');
+    }
+    const newHistory = state.history.filter((_, i) => i !== index);
+    set({ history: newHistory });
+  },
 
   historyHighlightEpisode: null,
   setHistoryHighlightEpisode: (info) => set({ historyHighlightEpisode: info }),
@@ -956,19 +972,47 @@ export const useStore = create<AppState>((set, get) => ({
     sendTopicMessage(
       MessageCodes.GET_PLAY_HISTORY,
       { limit: 50 },
-      (data) => {
-        if (!data) {
-          set({ history: [] });
-          return;
+      async (data) => {
+        let tvkList: any[] = [];
+        if (data) {
+          if (Array.isArray(data)) {
+            tvkList = data;
+          } else if (data.list) {
+            tvkList = data.list;
+          }
+        }
+        const tvkConverted = tvkList.map((h: any) => historyToVodInfo(h));
+        const tvkUrls = new Set(tvkConverted.map((item: any) => item.episodeUrl));
+
+        let goItems: any[] = [];
+        try {
+          const result = await api.getPlayHistory();
+          const goData = (result as any)?.data ?? result;
+          if (goData) {
+            const goList = Array.isArray(goData) ? goData : goData.list || [];
+            goItems = goList.map((h: any) => ({
+              id: h.vodId || '',
+              sourceKey: h.sourceKey || '',
+              name: h.vodName || '',
+              pic: h.vodPic || '',
+              playFlag: h.playFlag || '',
+              episodeFlag: h.episodeFlag || '',
+              episodeUrl: h.episodeUrl || '',
+              episodeIndex: h.episodeIndex || 0,
+              reverseSort: h.reverseSort || false,
+              progress: h.progress || 0,
+              duration: h.duration || 0,
+              timestamp: h.updatedAt || 0,
+            }));
+          }
+        } catch (e) {
+          console.error('loadHistory getPlayHistory error:', e);
         }
 
-        if (Array.isArray(data)) {
-          const converted = data.map((h: any) => historyToVodInfo(h));
-          set({ history: converted });
-        } else if (data.list) {
-          const converted = data.list.map((h: any) => historyToVodInfo(h));
-          set({ history: converted });
-        }
+        const goOnly = goItems.filter((item: any) => !tvkUrls.has(item.episodeUrl));
+        const merged = [...tvkConverted, ...goOnly];
+        merged.sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0));
+        set({ history: merged });
       }
     );
   },
@@ -997,5 +1041,20 @@ export const useStore = create<AppState>((set, get) => ({
       MessageCodes.SAVE_PLAY_HISTORY,
       catVodHistory
     );
+
+    api.savePlayHistory({
+      sourceKey: historyItem.sourceKey || '',
+      vodId: historyItem.id || '',
+      vodName: historyItem.name || '',
+      vodPic: historyItem.pic || '',
+      playFlag: historyItem.playFlag || '',
+      episodeFlag: historyItem.episodeFlag || '',
+      episodeIndex: historyItem.episodeIndex || 0,
+      episodeUrl: historyItem.episodeUrl || '',
+      reverseSort: historyItem.reverseSort || false,
+      progress: historyItem.progress || 0,
+      duration: historyItem.duration || 0,
+      updatedAt: Date.now(),
+    });
   },
 }));

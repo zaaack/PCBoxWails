@@ -12,6 +12,8 @@ export function DeleteCacheByID(arg1:number):Promise<boolean>;
 
 export function DeleteCachedFile(arg1:string):Promise<boolean>;
 
+export function DeletePlayHistory(arg1:string,arg2:string):Promise<boolean>;
+
 export function DownloadVideo(arg1:string,arg2:Record<string, string>,arg3:string):Promise<string>;
 
 export function DownloadVideoWithMeta(arg1:string,arg2:Record<string, string>,arg3:string,arg4:string,arg5:string,arg6:number,arg7:string,arg8:string):Promise<string>;
