@@ -973,6 +973,7 @@ export const useStore = create<AppState>((set, get) => ({
       MessageCodes.GET_PLAY_HISTORY,
       { limit: 50 },
       async (data) => {
+        console.log('loadHistory', data)
         let tvkList: any[] = [];
         if (data) {
           if (Array.isArray(data)) {

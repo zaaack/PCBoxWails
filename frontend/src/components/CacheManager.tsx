@@ -357,6 +357,15 @@ export const CacheManager: React.FC = () => {
                     />
                   </td>
                   <td className="cache-td-name">
+                    {record.status === 'completed' && (
+                      <button
+                        className="cache-play-btn"
+                        onClick={() => handlePlay(record)}
+                        title="Play"
+                      >
+                        <FiPlay size={14} />
+                      </button>
+                    )}
                     <span className="cache-name-text" title={record.videoName}>
                       {record.videoName}
                     </span>
@@ -366,15 +375,6 @@ export const CacheManager: React.FC = () => {
                   <td className="cache-td-status">{getStatusDisplay(record)}</td>
                   <td className="cache-td-date">{formatDate(record.updatedAt)}</td>
                   <td className="cache-td-actions">
-                    {record.status === 'completed' && (
-                      <button
-                        className="btn btn-xs btn-icon btn-play-icon"
-                        onClick={() => handlePlay(record)}
-                        title="Play"
-                      >
-                        <FiPlay size={12} />
-                      </button>
-                    )}
                     {(record.status === 'downloading' || record.status === 'pending') ? (
                       <button
                         className="btn btn-xs btn-icon btn-cancel-icon"

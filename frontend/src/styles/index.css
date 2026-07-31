@@ -1832,6 +1832,8 @@ select.settings-input {
 .cache-td-check input,
 .cache-th-check input {
   cursor: pointer;
+  width: 24px;
+  height: 24px;
 }
 
 .cache-td-name {
@@ -1845,6 +1847,26 @@ select.settings-input {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.cache-play-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: #22c55e;
+  color: #fff;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.cache-play-btn:hover {
+  filter: brightness(1.1);
 }
 
 .cache-status-icon {
